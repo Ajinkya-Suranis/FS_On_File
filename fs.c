@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <assert.h>
 
 struct super_block		sb;
 struct dinode			ildp;
@@ -213,6 +214,7 @@ iget(
 
 	*dpp = NULL;
 	if (inum > fs->lastino) {
+		assert(0);
 		fprintf(stderr, "iget: File system %s invalid inode "
 			"number %llu access\n", fs->mntpt, inum);
 		return EINVAL;
@@ -522,19 +524,21 @@ alloc_emap(
 	int		size)
 {
 	char		*buf = NULL;
-	int		alloc;
+	int		alloc, nexts = INIT_FIXED_EXTS;
 
 	emap_sz = (size % 8 == 0) ? (size/8) : (size/8 + 1);
-	emap_sz = (emap_sz + ONE_K - 1) & (ONE_K - 1);
+	emap_sz = (emap_sz + ONE_K - 1) & ~(ONE_K - 1);
+	nexts += emap_sz/1024;
 	buf = (char *)malloc(emap_sz);
 	bzero(buf, emap_sz);
-	(void) lseek(fd, 5 * 1024, SEEK_SET);
+	memset(buf, 0xff, nexts);
+	(void) lseek(fd, sb.lastblk * 8192, SEEK_SET);
 	if (write(fd, buf, emap_sz) < emap_sz) {
 		fprintf(stderr, "Error writing emap\n");
 		free(buf);
 		return 1;
 	}
-	sb.lastblk += emap_sz;
+	sb.lastblk += emap_sz/1024;
 
 	free(buf);
 	return 0;
@@ -567,8 +571,10 @@ write_ilist(
 	int		fd)
 {
 	struct dinode	*dp = NULL;
+	char		*ptr;
 
 	dp = (struct dinode *) malloc(INOSIZE * 32);
+	ptr = dp;
 	bzero(dp, INOSIZE * 32);
 	dp->type = IFILT;
 	dp->size = 4 * INOSIZE;
@@ -577,19 +583,22 @@ write_ilist(
 	dp->orgarea.dir[0].blkno = 1;
 	dp->orgarea.dir[0].len = 4;
 	bcopy((void *)dp, (void *)&ildp, sizeof(struct dinode));
-	dp += INOSIZE;
+	ptr += INOSIZE;
+	dp = ptr;
 
 	dp->type = IFEMP;
 	dp->size = emap_sz;
 	dp->nblocks = emap_sz;
 	dp->orgtype = ORG_DIRECT;
-	dp += INOSIZE;
+	ptr += INOSIZE;
+	dp = ptr;
 
 	dp->type = IFIMP;
 	dp->size = 1024;
 	dp->nblocks = 1;
 	dp->orgtype = ORG_DIRECT;
-	dp += INOSIZE;
+	ptr += INOSIZE;
+	dp = ptr;
 
 	dp->type = IFDIR;
 	dp->size = 0;
@@ -631,11 +640,11 @@ create_fs(
 		return 1;
 	}
 
-        sb.magic = FS_MAGIC;
-        sb.version = 1;
-        sb.size = size;
-        sb.freeblks = size - 1;
-        sb.lastblk = 1;
+	sb.magic = FS_MAGIC;
+	sb.version = FS_VERSION1;
+	sb.size = size;
+	sb.freeblks = size - 1;
+	sb.lastblk = 2;
 
 	if ((error = alloc_emap(fd, size)) ||
 		(error = alloc_imap(fd, size))) {
