@@ -7,18 +7,19 @@
 
 struct super_block		sb;
 struct dinode			ildp;
-uint32_t			emap_sz;
+fs_u32_t			emap_sz;
+fs_u64_t			emap_firstblk, imap_firstblk;
 
 int
 bmap_direct(
 	struct dinode	*dp,
-	uint64_t	*blknop,
-	uint64_t	*lenp,
-	uint64_t	*offp,
-	uint64_t	offset)
+	fs_u64_t	*blknop,
+	fs_u64_t	*lenp,
+	fs_u64_t	*offp,
+	fs_u64_t	offset)
 {
 	int		i;
-	uint64_t	total = 0, blkno, len;
+	fs_u64_t	total = 0, blkno, len;
 
 	for (i = 0; i < MAX_DIRECT; i++) {
 		blkno = dp->orgarea.dir[i].blkno;
@@ -42,15 +43,15 @@ int
 bmap_indirect(
 	int		fd,
 	struct dinode	*dp,
-	uint64_t	*blknop,
-	uint64_t	*lenp,
-	uint64_t	*offp,
-	uint64_t	offset)
+	fs_u64_t	*blknop,
+	fs_u64_t	*lenp,
+	fs_u64_t	*offp,
+	fs_u64_t	offset)
 {
 	struct direct	*dir;
 	int		i, j, ndirects, error = 0;
 	char		*buf = NULL;
-	uint64_t	total = 0, blkno, len;
+	fs_u64_t	total = 0, blkno, len;
 
 	buf = (char *)malloc(INDIR_BLKSZ);
 	if (buf == NULL) {
@@ -101,13 +102,13 @@ int
 bmap_2indirect(
 	int		fd,
 	struct dinode	*dp,
-	uint64_t	*blknop,
-	uint64_t	*lenp,
-	uint64_t	*offp,
-	uint64_t	offset)
+	fs_u64_t	*blknop,
+	fs_u64_t	*lenp,
+	fs_u64_t	*offp,
+	fs_u64_t	offset)
 {
 	struct direct	*dir;
-	uint64_t	blkno, *indir, total = 0;
+	fs_u64_t	blkno, *indir, total = 0;
 	char		*indirbuf = NULL, *dirbuf = NULL;
 	int		i, j, k, nindirs, ndirs, erro = 0;
 
@@ -125,7 +126,7 @@ bmap_2indirect(
 		free(indirbuf);
 		return ENOMEM;
 	}
-	nindirs = INDIR_BLKSZ/(sizeof(uint64_t));
+	nindirs = INDIR_BLKSZ/(sizeof(fs_u64_t));
 	ndirs = INDIR_BLKSZ/(sizeof(struct direct));
 	for (i = 0; i < MAX_INDIRECT; i++) {
 		blkno = dp->orgarea.indir[i].blkno;
@@ -134,7 +135,7 @@ bmap_2indirect(
 			error = errno;
 			goto out;
 		}
-		indir = (uint64_t *)indirbuf;
+		indir = (fs_u64_t *)indirbuf;
 		for (j = 0; j < nindirs; j++) {
 			blkno = indir[j];
 			lseek(fd, (blkno * ONE_K), SEEK_SET);
@@ -178,10 +179,10 @@ int
 bmap(
 	int		fd,
 	struct dinode	*dp,
-	uint64_t	*blknop,
-	uint64_t	*lenp,
-	uint64_t	*offp,
-	uint64_t	offset)
+	fs_u64_t	*blknop,
+	fs_u64_t	*lenp,
+	fs_u64_t	*offp,
+	fs_u64_t	offset)
 {
 	int		error = 0;
 
@@ -204,12 +205,12 @@ bmap(
 int
 iget(
 	int		fd,
-	uint64_t	inum,
+	fs_u64_t	inum,
 	struct dinode	*ildp,
 	struct dinode	**dpp)
 {
 	struct dinode	*dp = NULL;
-	uint64_t	offset, off, blkno, len;
+	fs_u64_t	offset, off, blkno, len;
 	int		error = 0;
 
 	*dpp = NULL;
@@ -250,12 +251,12 @@ int
 read_dir(
 	int		fd,
 	struct dinode	*dp,
-	uint64_t	offset,
+	fs_u64_t	offset,
 	char		*buf,
 	int		buflen)
 {
-	uint64_t	blkno, off, len;
-	uint64_t	sz = dp->size, remain = buflen, count = 0;
+	fs_u64_t	blkno, off, len;
+	fs_u64_t	sz = dp->size, remain = buflen, count = 0;
 	int		direntlen = sizeof(struct direntry);
 	int		error = 0;
 
@@ -316,7 +317,7 @@ lookup_path(
 {
 	struct direntry	*de, *de1 = NULL;
 	struct dinode	*dp = NULL;
-	uint64_t	offset = 0, inum = MNTPT_INO;
+	fs_u64_t	offset = 0, inum = MNTPT_INO;
 	char		*buf = NULL;
 	int		i = 0, j, nentries;
 	int		error = 0, buflen, low, high;
@@ -398,11 +399,11 @@ out:
 int
 fsread(
 	int		fd,
-	uint64_t	offset,
+	fs_u64_t	offset,
 	int		len,
 	char		*buf)
 {
-	uint64_t	off, foff, sz, blkno;
+	fs_u64_t	off, foff, sz, blkno;
 	int		remain = len, readlen;
 	int		nread = 0, error = 0;
 
@@ -426,7 +427,7 @@ fsread(
 		if (read(fd, (buf + nread), readlen) != readlen) {
 			goto out;
 		}
-		offset += (uint64_t)readlen;
+		offset += (fs_u64_t)readlen;
 		nread += readlen;
 	}
 
@@ -551,16 +552,16 @@ alloc_imap(
 {
 	char		*buf = NULL;
 
-	buf = (char *) malloc(1024);
-	bzero(buf, 1024);
-	buf[0] = 0xf;
+	buf = (char *) malloc(8192);
+	bzero(buf, 8192);
+	memset(buf, 0xf, 1);
 	(void)lseek(fd, sb.lastblk * 1024, SEEK_SET);
-	if (write(fd, buf, 1024) < 1024) {
+	if (write(fd, buf, 8192) < 8192) {
 		fprintf(stderr, "Error writing imap\n");
 		free(buf);
 		return 1;
 	}
-	sb.lastblk += 1;
+	sb.lastblk += 8;
 
 	free(buf);
 	return 0;
