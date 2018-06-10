@@ -529,7 +529,7 @@ alloc_emap(
 
 	emap_sz = (size % 8 == 0) ? (size/8) : (size/8 + 1);
 	emap_sz = (emap_sz + ONE_K - 1) & ~(ONE_K - 1);
-	nexts += emap_sz/1024;
+	nexts += emap_sz/ONE_K;
 	buf = (char *)malloc(emap_sz);
 	bzero(buf, emap_sz);
 	memset(buf, 0xff, nexts);
@@ -539,7 +539,8 @@ alloc_emap(
 		free(buf);
 		return 1;
 	}
-	sb.lastblk += emap_sz/1024;
+	emap_firstblk = sb.lastblk;
+	sb.lastblk += emap_sz/ONE_K;
 
 	free(buf);
 	return 0;
@@ -555,14 +556,14 @@ alloc_imap(
 	buf = (char *) malloc(8192);
 	bzero(buf, 8192);
 	memset(buf, 0xf, 1);
-	(void)lseek(fd, sb.lastblk * 1024, SEEK_SET);
+	(void)lseek(fd, sb.lastblk * ONE_K, SEEK_SET);
 	if (write(fd, buf, 8192) < 8192) {
 		fprintf(stderr, "Error writing imap\n");
 		free(buf);
 		return 1;
 	}
+	imap_firstblk = sb.lastblk;
 	sb.lastblk += 8;
-
 	free(buf);
 	return 0;
 }
@@ -591,13 +592,17 @@ write_ilist(
 	dp->size = emap_sz;
 	dp->nblocks = emap_sz;
 	dp->orgtype = ORG_DIRECT;
+	dp->orgarea.dir[0].blkno = emap_firstblk;
+	dp->orgarea.dir[0].len = emap_sz/ONE_K;
 	ptr += INOSIZE;
 	dp = ptr;
 
 	dp->type = IFIMP;
-	dp->size = 1024;
-	dp->nblocks = 1;
+	dp->size = 8192;
+	dp->nblocks = 8;
 	dp->orgtype = ORG_DIRECT;
+	dp->orgarea.dir[0].blkno = imap_firstblk;
+	dp->orgarea.dir[0].len = 8;
 	ptr += INOSIZE;
 	dp = ptr;
 
@@ -606,7 +611,7 @@ write_ilist(
 	dp->nblocks = 0;
 	dp->orgtype = ORG_DIRECT;
 
-	(void) lseek(fd, 1024, SEEK_SET);
+	(void) lseek(fd, ONE_K, SEEK_SET);
 
 	if (write(fd, dp, INOSIZE * 32) < (INOSIZE * 32)) {
 		fprintf(stderr, "Error writing to ilist file\n");
@@ -636,7 +641,7 @@ create_fs(
 		return 1;
 	}
 
-	if (fallocate(fd, 0, 0, size * 1024) == -1) {
+	if (fallocate(fd, 0, 0, size * ONE_K) == -1) {
 		fprintf(stderr, "Couldn't fallocate %s\n", fname);
 		return 1;
 	}

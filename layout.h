@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <sys/param.h>
 #include <assert.h>
+#include "includes.h"
 
 /*
  * Magic number of our file system.
@@ -115,13 +116,13 @@
  */
 
 struct super_block {
-	uint32_t	magic;
-	uint32_t	version;
-	uint32_t	freeblks;
-	uint32_t	size;
-	uint32_t	lastblk;
-	uint32_t	pad;
-	uint64_t	lastino;
+	fs_u32_t	magic;
+	fs_u32_t	version;
+	fs_u32_t	freeblks;
+	fs_u32_t	size;
+	fs_u32_t	lastblk;
+	fs_u32_t	pad;
+	fs_u64_t	lastino;
 };
 
 /*
@@ -133,7 +134,7 @@ struct super_block {
 
 struct direntry {
 	char		name[56];
-	uint64_t	inumber;
+	fs_u64_t	inumber;
 };
 
 /*
@@ -143,8 +144,8 @@ struct direntry {
  */
 
 struct direct {
-	uint64_t	blkno;
-	uint32_t	len;
+	fs_u64_t	blkno;
+	fs_u32_t	len;
 };
 
 union org {
@@ -156,9 +157,9 @@ union org {
  */
 
 struct dinode {
-	uint32_t	type;
-	uint32_t	size;
-	uint32_t	nblocks;
-	uint32_t	orgtype;
+	fs_u32_t	type;
+	fs_u32_t	size;
+	fs_u32_t	nblocks;
+	fs_u32_t	orgtype;
 	union org	orgarea;
 };
