@@ -3,7 +3,10 @@
 #include <stdint.h>
 #include <sys/param.h>
 #include <assert.h>
-#include "includes.h"
+#include "types.h"
+
+#ifndef _FS_LAYOUT_H_
+#define _FS_LAYOUT_H_
 
 /*
  * Magic number of our file system.
@@ -71,6 +74,14 @@
 #define IFIMP		0x0010	/* inode map inode */
 
 /*
+ * Initial number of inodes allocated inside
+ * the ilist file.
+ * Those four are: ilist, emap, imap and dir inodes.
+ */
+
+#define INIT_NINODES	4
+
+/*
  * Inode org type.
  * Org type tells how to interpret the org area
  * of inode.
@@ -104,7 +115,18 @@
 #define ONE_K		1024
 #define LOG_ONE_K	10
 
-#define INIT_FIXED_EXTS	42
+/*
+ * initial fixed number of extents allocated at
+ * the time of creation of file system.
+ */
+
+#define INIT_FIXED_EXTS	56
+
+/*
+ * initial ilist extent size.
+ */
+
+#define INIT_ILT_SIZE	32768
 
 /*
  * Super block structure.
@@ -163,3 +185,5 @@ struct dinode {
 	fs_u32_t	orgtype;
 	union org	orgarea;
 };
+
+#endif /*_FS_LAYOUT_H_*/
