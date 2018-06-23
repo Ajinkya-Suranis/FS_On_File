@@ -9,6 +9,7 @@
 
 fs_u32_t        emap_sz;
 fs_u64_t        emap_firstblk, imap_firstblk;
+fs_u64_t	init_ilistblk;
 
 static int	alloc_emap(struct super_block *, int, int);
 static int	alloc_imap(struct super_block *, int, int);
@@ -122,11 +123,12 @@ write_ilist(
         dp->nblocks = 0;
         dp->orgtype = ORG_DIRECT;
 
-        (void) lseek(fd, (imap_firstblk + 8) * ONE_K, SEEK_SET);
+	init_ilistblk = (imap_firstblk + 8) * ONE_K;
+        (void) lseek(fd, init_ilistblk, SEEK_SET);
 
-        if (write(fd, dp, INIT_ILT_SIZE) < INIT_ILT_SIZE) {
+        if (write(fd, buf, INIT_ILT_SIZE) < INIT_ILT_SIZE) {
                 fprintf(stderr, "Error writing to ilist file\n");
-                free(dp);
+                free(buf);
                 return 1;
         }
         sb->lastblk += INIT_ILT_SIZE/ONE_K;
@@ -179,6 +181,7 @@ create_fs(
                 return 1;
         }
 
+	sb->ilistblk = init_ilistblk;
         (void) lseek(fd, SB_OFFSET, SEEK_SET);
         if (write(fd, sb, sizeof(struct super_block)) !=
                 sizeof(struct super_block)) {

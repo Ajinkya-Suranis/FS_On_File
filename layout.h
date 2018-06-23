@@ -126,7 +126,7 @@
  * initial ilist extent size.
  */
 
-#define INIT_ILT_SIZE	32768
+#define INIT_ILT_SIZE	(1 << 15)
 
 /*
  * Super block structure.
@@ -140,9 +140,10 @@
 struct super_block {
 	fs_u32_t	magic;
 	fs_u32_t	version;
-	fs_u32_t	freeblks;
+	fs_u64_t	freeblks;
+	fs_u64_t	lastblk;
+	fs_u64_t	ilistblk;
 	fs_u32_t	size;
-	fs_u32_t	lastblk;
 	fs_u32_t	pad;
 	fs_u64_t	lastino;
 };
@@ -180,9 +181,11 @@ union org {
 
 struct dinode {
 	fs_u32_t	type;
-	fs_u32_t	size;
-	fs_u32_t	nblocks;
+	fs_u32_t	pad1;
+	fs_u64_t	size;
+	fs_u64_t	nblocks;
 	fs_u32_t	orgtype;
+	fs_u32_t	pad2;
 	union org	orgarea;
 };
 

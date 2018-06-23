@@ -2,13 +2,14 @@
 #define _FS_H_
 
 struct fsmem {
-	int			fsm_fd;
+	int			fsm_devfd;
 	char			*fsm_devf;
 	char			*fsm_mntpt;
 	struct super_block	*fsm_sb;
 	struct minode		*fsm_ilip;
 	struct minode		*fsm_emapip;
 	struct minode		*fsm_imapip;
+	struct minode		*fsm_mntip;
 };
 
 struct fs_handle {

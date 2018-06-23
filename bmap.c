@@ -1,22 +1,23 @@
 #include "layout.h"
 #include "types.h"
 #include "fs.h"
+#include "inode.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
 
-static int	bmap_direct(struct dinode *, fs_u64_t *, fs_u64_t *,
+static int	bmap_direct(struct minode *, fs_u64_t *, fs_u64_t *,
 			    fs_u64_t *, fs_u64_t);
-static int	bmap_indirect(int, struct dinode *, fs_u64_t *, fs_u64_t *,
+static int	bmap_indirect(int, struct minode *, fs_u64_t *, fs_u64_t *,
 			      fs_u64_t *, fs_u64_t);
-static int	bmap_2indirect(int, struct dinode *, fs_u64_t *, fs_u64_t *,
+static int	bmap_2indirect(int, struct minode *, fs_u64_t *, fs_u64_t *,
 			       fs_u64_t *, fs_u64_t);
 
 static int
 bmap_direct(
-        struct dinode   *dp,
+        struct minode   *mp,
         fs_u64_t        *blknop,
         fs_u64_t        *lenp,
         fs_u64_t        *offp,
@@ -25,10 +26,10 @@ bmap_direct(
         int             i;
         fs_u64_t        total = 0, blkno, len;
 
-	assert(dp != NULL);
+	assert(mp != NULL);
         for (i = 0; i < MAX_DIRECT; i++) {
-                blkno = dp->orgarea.dir[i].blkno;
-                len = dp->orgarea.dir[i].len;
+                blkno = mp->mino_orgarea.dir[i].blkno;
+                len = mp->mino_orgarea.dir[i].len;
                 if ((len == 0) || (total + (ONE_K * len)) > offset) {
                         break;
                 }
@@ -47,7 +48,7 @@ bmap_direct(
 static int
 bmap_indirect(
         int             fd,
-        struct dinode   *dp,
+        struct dinode   *mp,
         fs_u64_t        *blknop,
         fs_u64_t        *lenp,
         fs_u64_t        *offp,
@@ -65,7 +66,7 @@ bmap_indirect(
         ndirects = (int)(INDIR_BLKSZ/(sizeof(struct direct)));
 
         for (i = 0; i < MAX_INDIRECT; i++) {
-                blkno = dp->orgarea.indir[i].blkno;
+                blkno = mp->mino_orgarea.indir[i].blkno;
                 lseek(fd, blkno * ONE_K, SEEK_SET);
                 if (read(fd, buf, MAX_INDIRECT) != MAX_INDIRECT) {
                         error = errno;
@@ -106,7 +107,7 @@ out:
 static int
 bmap_2indirect(
         int             fd,
-        struct dinode   *dp,
+        struct minode   *mp,
         fs_u64_t        *blknop,
         fs_u64_t        *lenp,
         fs_u64_t        *offp,
@@ -134,7 +135,7 @@ bmap_2indirect(
         nindirs = INDIR_BLKSZ/(sizeof(fs_u64_t));
         ndirs = INDIR_BLKSZ/(sizeof(struct direct));
         for (i = 0; i < MAX_INDIRECT; i++) {
-                blkno = dp->orgarea.indir[i].blkno;
+                blkno = mp->mino_orgarea.indir[i].blkno;
                 lseek(fd, (blkno * ONE_K), SEEK_SET);
                 if (read(fd, indirbuf, INDIR_BLKSZ) != INDIR_BLKSZ) {
                         error = errno;
@@ -183,7 +184,7 @@ out:
 int
 bmap(
 	int		fd,
-	struct dinode	*dp,
+	struct minode	*mp,
         fs_u64_t        *blknop,
         fs_u64_t        *lenp,
         fs_u64_t        *offp,
@@ -191,16 +192,17 @@ bmap(
 {
         int             error = 0;
 
-        assert(dp->orgtype == ORG_DIRECT || dp->orgtype == ORG_INDIRECT ||
-               dp->orgtype == ORG_2INDIRECT);
-        if (dp->orgtype == ORG_DIRECT) {
-                error = bmap_direct(dp, blknop, lenp,
+        assert(mp->mino_orgtype == ORG_DIRECT ||
+	       mp->mino_orgtype == ORG_INDIRECT ||
+               mp->mino_orgtype == ORG_2INDIRECT);
+        if (mp->mino_orgtype == ORG_DIRECT) {
+                error = bmap_direct(mp, blknop, lenp,
                                     offp, offset);
-        } else if (dp->orgtype == ORG_INDIRECT) {
-                error = bmap_indirect(fd, dp, blknop, lenp,
+        } else if (mp->mino_orgtype == ORG_INDIRECT) {
+                error = bmap_indirect(fd, mp, blknop, lenp,
                                       offp, offset);
         } else {
-                error = bmap_2indirect(fd, dp, blknop, lenp,
+                error = bmap_2indirect(fd, mp, blknop, lenp,
                                        offp, offset);
         }
 
