@@ -160,6 +160,15 @@ struct direntry {
 	fs_u64_t	inumber;
 };
 
+#define DIRENTRY_LEN	(sizeof(struct direntry))
+
+struct udirentry {
+	char		udir_name[256];
+	fs_u64_t	udir_inum;
+};
+
+#define UDIRENTRY_LEN	(sizeof(struct udirentry))
+
 /*
  * direct org type structure.
  * It just contains block number and length and hence

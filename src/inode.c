@@ -1,6 +1,8 @@
 #include "layout.h"
 #include "types.h"
 #include "fs.h"
+#include "bmap.h"
+#include "inode.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -15,6 +17,7 @@ iget(
 	struct super_block	*sb = fsm->fsm_sb;
 	struct minode		*mino = NULL;
 	fs_u64_t		offset;
+	fs_u64_t		blkno, off, len;
 	int			error = 0;
 
 	assert(sb != NULL);
@@ -30,4 +33,21 @@ iget(
 			inum);
 		return NULL;
 	}
-	if ((error = bmap(
+	if ((error = bmap(fsm->fsm_devfd, fsm->fsm_ilip, &blkno, &len,
+			  &off, offset))) {
+		fprintf(stderr, "Failed to bmap at %llu offset in ilist "
+			"file\n", offset);
+		free(mino);
+		return NULL;
+	}
+	offset = (blkno * ONE_K) + off;
+	lseek(fsm->fsm_devfd, offset, SEEK_SET);
+	if (read(fsm->fsm_devfd, &mino->mino_dip, sizeof(struct dinode)) !=
+		 sizeof(struct dinode)) {
+		fprintf(stderr, "Failed to read inode %llu\n", inum);
+		free(mino);
+		return NULL;
+	}
+	mino->mino_number = inum;
+	return mino;
+}

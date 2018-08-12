@@ -3,6 +3,7 @@
 
 struct minode {
         struct dinode           mino_dip;
+	struct fsmem		*mino_fsm;
         uint64_t                mino_number;
 };
 
