@@ -10,7 +10,7 @@ typedef void *	FSHANDLE;
 typedef void *	FHANDLE;
 extern int	create_fs(char *, int);
 extern void	*fsmount(char *, char *);
-extern int	fsopen(void *, char *, unsigned short);
+extern void	*fsopen(void *, char *, unsigned short);
 
 /*
 extern int	fslseek(void *, fs_u64_t, int);

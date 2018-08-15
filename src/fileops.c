@@ -10,6 +10,7 @@
 #include <assert.h>
 
 int	internal_read(int, struct minode *, char *, fs_u64_t, fs_u32_t);
+int	lookup_path(void *, char *);
 
 /*
  * Read the directory specified by 'fh' handle.
@@ -109,7 +110,74 @@ lookup_path(
 	void		*fsh,
 	char		*path)
 {
-	
+	struct direntry	*dirp = NULL;
+	struct minode	*mino = NULL;
+	fs_u64_t	inum = MNTPT_INO, offset = 0;
+	char		*buf = NULL;
+	int		start = 1, end = strlen(path) - 1;
+	int		i = 1, j, nent, found = 0;
+
+	/*
+	 * Allocate buffer for directory entries.
+	 * We'll be reading 16 directory entries
+	 * in each iteration.
+	 */
+
+	buf = (char *)malloc(16 * DIRENTRY_LEN);
+
+	for (;;) {
+		if (path[i] != '/' && path[i] != '\0') {
+			end++;
+			i++;
+			continue;
+		}
+		if (start == end) {
+			break;
+		}
+		fprintf(stdout, "Component: ");
+		for (j = start; j <= end; j++) {
+			fprintf(stdout, "%c", path[j]);
+		}
+		fprintf(stdout, "\n");
+		mino = iget(fsh->fsh_mem, inum);
+		if (mino == NULL) {
+			fprintf(stderr, "lookup_path: Failed to read inode %llu"
+				" for %s\n", inum, fsh->fsh_mem->fsm_mntpt);
+			return 0;
+		}
+		found = 0;
+		for (;;) {
+			memset(buf, 0, 16 * DIRENTRY_LEN);
+			nent = internal_readdir(mino, buf, offset, 16);
+			if (nent == 0) {
+				break;
+			}
+			dirp = (struct direntry *)buf;
+			for (j = 0; j < nent; j++) {
+				fprintf(stdout, "Trying to match with %s",
+					dirp->name);
+				if (strlen(dirp->name) == (end - start + 1) &&
+				    strncmp(path + start, dirp->name,
+				    (end - start + 1))) {
+					fprintf(stdout, "Found matching entry:",
+						dirp->name);
+					found = 1;
+					break;
+				}
+				dirp++;
+			}
+			if (!found) {
+				goto out;
+			}
+			offset += nent * DIRENTRY_LEN;
+		}
+		start = end = ++i;
+		inum = dirp->inumber;
+	}
+
+out:
+	free(buf);
+	return found;
 
 int
 internal_read(
