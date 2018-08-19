@@ -58,8 +58,8 @@ fsread_dir(
 	assert(offset % DIRENTRY_LEN == 0);
 	len = nentries * DIRENTRY_LEN;
 
-	if ((rd = internal_read(fh->fh_fsh->fsh_mem->fsm_devfd, mino, intbuf, offset,
-				len)) != (int)len) {
+	if ((rd = internal_read(fh->fh_fsh->fsh_mem->fsm_devfd, mino, intbuf,
+				offset, len)) != (int)len) {
 		fprintf(stderr, "Failed to read directory inode %llu\n",
 			mino->mino_number);
 	}
@@ -178,6 +178,7 @@ lookup_path(
 out:
 	free(buf);
 	return found;
+}
 
 int
 internal_read(

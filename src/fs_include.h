@@ -11,6 +11,7 @@ typedef void *	FHANDLE;
 extern int	create_fs(char *, int);
 extern void	*fsmount(char *, char *);
 extern void	*fsopen(void *, char *, unsigned short);
+extern void	*fscreate(void *, char *);
 
 /*
 extern int	fslseek(void *, fs_u64_t, int);
