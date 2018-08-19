@@ -49,5 +49,6 @@ iget(
 		return NULL;
 	}
 	mino->mino_number = inum;
+	mino->mino_bno = blkno;
 	return mino;
 }

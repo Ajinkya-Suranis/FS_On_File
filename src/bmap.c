@@ -2,6 +2,7 @@
 #include "types.h"
 #include "fs.h"
 #include "inode.h"
+#include "allocate.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -181,6 +182,83 @@ out:
         return error;
 }
 
+/*
+ * Convert direct orgtype to indirect and add
+ * the extent entry to hte inode.
+ */
+
+static int
+bmap_direct_to_indirect(
+	struct fsmem	*fsm,
+	struct minode	*ino,
+	fs_u64_t	blkno,
+	fs_u32_t	len)
+{
+	struct direct	*dir = NULL;
+	fs_u64_t	off, blk, ln;
+	int		error = 0;
+
+	if ((error = allocate(fsm, 8, &blk, &ln)) != 0 || ln < 8) {
+		return error;
+	}
+	dir = (struct direct *)malloc(INDIR_BLKSZ);
+	if (!dir) {
+		fprintf(stderr, "bmap_direct_to_indirect: failed to allocate "
+			"memory for indirect extent for %s\n", fsm->fsm_mntpt);
+		return ENOMEM;
+	}
+	memset((void *)dir, 0, INDIR_BLKSZ);
+	dir[0].blkno = blkno;
+	dir[0].len = len;
+	off = blk * ONE_K;
+	lseek(fsm->fsm_devfd, off, SEEK_SET);
+	if (write(fsm->fsm_devfd, dir, INDIR_BLKSZ) != INDIR_BLKSZ) {
+		fprintf(stderr, "bmap_direct_to_indirect: failed to write "
+			"indirect block extent for %s\n", fsm->fsm_mntpt);
+		error = errno;
+	}
+	free(dir);
+	return error;
+}
+
+/*
+ * Add an extent entry into the direct area of
+ * inode. If there is no free space in direct area
+ * of inode, then thr orgtype needs to be converted
+ * to indirect.
+ */
+
+static int
+bmap_direct_alloc(
+	struct fsmem	*fsm,
+	struct minode	*ino,
+	fs_u64_t	blkno,
+	fs_u32_t	len)
+{
+	int		i, error = 0;
+
+	for (i = 0; i < MAX_DIRECT; i++) {
+		if (ino->mino_orgarea.dir[i].blkno == 0) {
+			break;
+		}
+	}
+	if (i != MAX_DIRECT) {
+		/*
+		 * we've found a vacant entry in inode.
+		 * Fill it with new extent entry.
+		 */
+		ino->mino_orgarea.dir[i].blkno = blkno;
+		ino->mino_orgarea.dir[i].len = len;
+	} else {
+		if ((error = bmap_direct_to_indirect(fsm, ino, blkno,
+						     len)) != 0) {
+			return error;
+		}
+	}
+	error = iwrite(ino);
+	return error;
+}
+
 int
 bmap(
 	int		fd,
@@ -207,4 +285,37 @@ bmap(
         }
 
         return error;
+}
+
+/*
+ * Allocate an extent and add its entry in
+ * the bmap of an inode.
+ */
+
+int
+bmap_alloc(
+	struct fsmem	*fsm,
+	struct minode	*ino,
+	fs_u32_t	req,
+	fs_u64_t	*blknop,
+	fs_u32_t	*lenp)
+{
+	int		error;
+
+	assert(ino->mino_orgtype == ORG_DIRECT ||
+	       ino->mino_orgtype == ORG_INDIRECT ||
+	       ino->mino_orgtype == ORG_2INDIRECT);
+
+	if ((error = allocate(fsm, req, blknop, lenp)) != 0) {
+		return error;
+	}
+	if (ino->mino_orgtype == ORG_DIRECT) {
+		error = bmap_direct_alloc(fsm, ino, *blknop, *lenp);
+	} else if (ino->mino_orgtype == ORG_INDIRECT) {
+		error = bmap_indirect_alloc(fsm, ino, *blknop, *lenp);
+	} else {
+		error = bmap_2indirect_alloc(fsm, ino, *blknop, *lenp);
+	}
+
+	return error;
 }

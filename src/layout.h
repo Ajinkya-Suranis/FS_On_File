@@ -28,7 +28,7 @@
  * to a file/directory.
  */
 
-#define MAX_INDIRECT	24
+#define MAX_INDIRECT	12
 
 /*
  * Size of metadata of a single inode.
@@ -177,7 +177,7 @@ struct udirentry {
 
 struct direct {
 	fs_u64_t	blkno;
-	fs_u32_t	len;
+	fs_u64_t	len;
 };
 
 union org {
