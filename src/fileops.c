@@ -59,7 +59,7 @@ fsread_dir(
 	len = nentries * DIRENTRY_LEN;
 
 	if ((rd = internal_read(fh->fh_fsh->fsh_mem->fsm_devfd, mino, intbuf,
-				offset, len)) != (int)len) {
+				offset, len)) != (int)len && errno) {
 		fprintf(stderr, "Failed to read directory inode %llu\n",
 			mino->mino_number);
 	}
@@ -97,7 +97,7 @@ internal_readdir(
 		return 0;
 	}
 	if ((rd = internal_read(mino->mino_fsm->fsm_devfd, mino, buf, offset,
-				len)) != len) {
+				len)) != len && errno) {
 		fprintf(stderr, "internal_readdir failed for inode %llu\n",
 			mino->mino_number);
 	}
@@ -245,3 +245,54 @@ fsread(
 out:
 	return nread;
 }
+
+/*
+ * Create a new file or directory.
+ */
+
+void *
+fscreate(
+	void			*fsh,
+	char			*path)
+{
+	struct file_handle	*fh = NULL;
+	int			i, len = strlen(path), last;
+
+	if (*path != '/') {
+		fprintf(stderr, "ERROR: %s: path must be absolute i.e. "
+			"must start with '/'\n", path);
+		errno = EINVAL;
+		return NULL;
+	}
+	if (len == 1) {
+		fprintf(stderr, "ERROR: %s is invalid path\n", path);
+		errno = EINVAL;
+		return NULL;
+	}
+
+	/*
+	 * First, do lookup on full path and see if the file/directory
+	 * is already present. If so, return NULL.
+	 * If it doesn't, lookup again for its to-be parent directory
+	 * if parent isn't the root directory.
+	 */
+
+	if (lookup_path(fsh, path) != 0) {
+		fprintf(stderr, "ERROR: The file %s already exists\n", path);
+		return NULL;
+	}
+	for (i = 0, last = 0; i < len; i++) {
+		if (path[i] == '/') {
+			last = i;
+		}
+	}
+	if (last != 0) {
+		path[last] = '\0';
+		if(lookup_path(fsh, path) == 0) {
+			fprintf(stderr, "ERROR: %s doesn't exist\n", path);
+			errno = ENOENT;
+			return NULL;
+		}
+		path[last] = '/';
+	}
+	

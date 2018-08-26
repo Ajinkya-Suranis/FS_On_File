@@ -37,6 +37,7 @@
  */
 
 #define INOSIZE		256
+#define LOG_INOSIZE	8
 
 /*
  * Size of an indirect extent.
@@ -146,6 +147,7 @@ struct super_block {
 	fs_u32_t	size;
 	fs_u32_t	pad;
 	fs_u64_t	lastino;
+	fs_u64_t	iused;
 };
 
 /*

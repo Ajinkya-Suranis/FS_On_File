@@ -170,6 +170,7 @@ create_fs(
         sb->size = size;
         sb->freeblks = size - 1;
         sb->lastblk = 2;
+	sb->iused = INIT_NINODES;
 
         if ((error = alloc_emap(sb, fd, size)) ||
                 (error = alloc_imap(sb, fd, size))) {
