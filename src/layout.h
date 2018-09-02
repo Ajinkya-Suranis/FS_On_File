@@ -39,6 +39,8 @@
 #define INOSIZE		256
 #define LOG_INOSIZE	8
 
+#define LOG_8		3
+
 /*
  * Size of an indirect extent.
  */

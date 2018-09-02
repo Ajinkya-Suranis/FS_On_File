@@ -214,6 +214,44 @@ out:
         return (int)nread;
 }
 
+/*
+ * Write to the metadata inode.
+ * This isn't a generic write routine to
+ * a structural inode; it has some restrictions,
+ * like: the write area must be inside the
+ * allocated blocks for the inode in picture,
+ * offset must be multiple of 1024 and write
+ * size must be 1024.
+ */
+
+int
+metadata_write(
+	struct fsmem	*fsm,
+	fs_u64_t	offset,
+	char		*buf,
+	struct minode	*ino)
+{
+	fs_u64_t	off, sz, blkno, foff;
+	int		error = 0, nwrite = 0;
+
+	assert(offset & (ONE_K - 1) == 0);
+	error = bmap(fsm->fsm_devfd, ino, &blkno, &sz, &off, offset);
+	if (error) {
+		errno = error;
+		return 0;
+	}
+	assert(off & (ONE_K - 1) == 0);
+	foff = (blkno * ONE_K) + off;
+	lseek(fsm->fsm_devfd, offset, SEEK_SET);
+	if ((nwrite = write(fsm->fsm_devfd, buf, ONE_K)) != ONE_K) {
+		fprintf(stderr, "Failed to write metadata inode %llu at offset"
+			" %llu for %s\n", ino->inumber, foff, fsm->fsm_mntpt);
+		return 0;
+	}
+
+	return nwrite;
+}
+
 int
 fsread(
 	void		*fh,
