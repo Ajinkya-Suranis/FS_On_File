@@ -10,6 +10,7 @@
 #include <string.h>
 #include <assert.h>
 
+#define ILIST_EXTSIZE	16
 #define IMAP_EXTSIZE	8
 
 struct minode *
@@ -66,11 +67,12 @@ iwrite(
 {
 	fs_u64_t	offset;
 
-	assert(ino != NULL && ino->mino_fsm ! NULL && ino->mino_bno != 0);
+	assert(ino != NULL && ino->mino_fsm != NULL && ino->mino_bno != 0);
 	offset = (ino->mino_bno << LOG_ONE_K) +
 		  ((ino->mino_number) << LOG_INOSIZE);
 	fprintf(stdout, "INFO: writing inode number %llu at ilist block number"
 		" %llu\n", ino->mino_number, ino->mino_bno);
+	lseek(ino->mino_fsm->fsm_devfd, offset, SEEK_SET);
 	if (write(ino->mino_fsm->fsm_devfd, &ino->mino_dip,
 		  INOSIZE) != INOSIZE) {
 		fprintf(stderr, "ERROR: failed to write inode number %llu:"
@@ -235,4 +237,98 @@ add_ilist_entry(
 	fs_u64_t	inum,
 	fs_u32_t	type)
 {
-	
+	struct dinode	dp;
+	fs_u64_t	blkno, offset, off;
+	fs_u32_t	len;
+	char		*buf = NULL;
+	int		error = 0;
+
+	assert((fsm->fsm_sb->iused - 1) << LOG_INOSIZE <= fsm->fsm_ilip->size);
+	assert((inum + 1) << LOG_INOSIZE  <= fsm->fsm_ilip->size);
+
+	if ((inum + 1) << LOG_INOSIZE == fsm->fsm_ilip->size) {
+
+		/*
+		 * The ilist file is full of used inodes; no entry for
+		 * a new one. Allocate an extent of 16 blocks for the
+		 * ilist file.
+		 */
+
+		if ((error = bmap_alloc(fsm, fsm->fsm_ilip, ILIST_EXTSIZE,
+					&blkno, &len)) != 0) {
+			fprintf(stderr, "add_ilist_entry: ilist allocation "
+				"failed for %s\n", fsm->fsm_mntpt);
+			return error;
+		}
+		buf = (char *)malloc(ILIST_EXTSIZE);
+		if (!buf) {
+			fprintf(stderr, "add_ilist_entry: failed to allocate "
+				"memory for ilist extent for %s\n",
+				fsm->fsm_mntpt);
+			return ENOMEM;
+		}
+		memset(buf, 0, ILIST_EXTSIZE);
+		memset(&dp, 0, sizeof(struct dinode));
+
+		/*
+ 		 * Initialize the inode data.
+		 */
+
+		dp.type = type;
+		dp.size = ILIST_EXTSIZE << LOG_ONE_K;
+		dp.orgtype = ORG_DIRECT;
+		memcpy(buf, &dp, sizeof(struct dinode));
+
+		offset = blkno << LOG_ONE_K;
+		lseek(fsm->fsm_devfd, offset, SEEK_SET);
+		if (write(fsm->fsm_devfd, buf, ILIST_EXTSIZE << LOG_ONE_K) !=
+			  ILIST_EXTSIZE << LOG_ONE_K) {
+			error = errno;
+			fprintf(stderr, "add_ilist_entry: failed to write "
+				"new ilist extent for %s\n", fsm->fsm_mntpt);
+			free(buf);
+			return error;
+		}
+
+		/*
+		 * Increase the size of ilist inode by 16 blocks
+		 */
+
+		fsm->fsm_ilip->mino_dip.size += ILIST_EXTSIZE << LOG_ONE_K;
+		if (error = iwrite(fsm->fsm_ilip)) {
+			fprintf(stderr, "add_ilist_entry: failed to add inode "
+				"number %llu to ilist for %s\n", inum,
+				fsm->fsm_mntpt);
+		}
+		free(buf);
+		return error;
+	}
+
+	/*
+	 * We got a free slot inside an already allocated ilist
+	 * extent. Write the inode metadata in that slot.
+	 */
+
+	offset = inum << LOG_INOSIZE;
+	dp.type = type;
+	dp.size = ILIST_EXTSIZE << LOG_ONE_K;
+	dp.orgtype = ORG_DIRECT;
+	if ((error = bmap(fsm->fsm_devfd, fsm->fsm_ilip, &blkno, &len, &off,
+			  offset)) != 0) {
+		fprintf(stderr, "add_ilist_entry: bmap failed at offset %llu"
+			" for ilist inode of %s\n", offset, fsm->fsm_mntpt);
+		return error;
+	}
+	offset = blkno << LOG_ONE_K + off;
+	fprintf(stdout, "add_ilist_entry: INFO: Writing inode %llu at offset"
+		" %llu for %s\n", inum, offset, fsm->fsm_mntpt);
+	lseek(fsm->fsm_devfd, offset, SEEK_SET);
+	if (write(fsm->fsm_devfd, &dp, sizeof(struct dinode)) !=
+	    sizeof(struct dinode)) {
+		fprintf(stderr, "add_ilist_entry: failed to write inode %llu"
+			" to ilist for %s\n", inum, fsm->fsm_mntpt);
+		error = errno;
+	}
+
+	return error;
+}
