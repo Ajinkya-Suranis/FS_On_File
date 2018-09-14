@@ -22,4 +22,8 @@ struct file_handle {
 	struct minode		*fh_inode;
 };
 
+#define FTYPE_MASK		0x03
+#define FTYPE_FILE		0x01
+#define FTYPE_DIR		0x02
+
 #endif

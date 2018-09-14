@@ -20,7 +20,8 @@ validate_sb(
 {
 	assert(sb != NULL);
 
-	if (sb->magic != FS_MAGIC || sb->version != FS_VERSION1) {
+	if (sb->magic != FS_MAGIC || sb->version != FS_VERSION1 ||
+	    sb->ilistblk == 0 || sb->size == 0) {
 		return EINVAL;
 	}
 	return 0;
@@ -208,7 +209,6 @@ fsmount(
 	}
 	strcpy(fsm->fsm_devf, dev);
 	strcpy(fsm->fsm_mntpt, mntpt);
-	fsm->fsm_devfd = devfd;
 	fsm->fsm_sb = sb;
 	error = fill_inodes(fsm);
 

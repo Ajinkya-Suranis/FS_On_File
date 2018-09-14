@@ -11,7 +11,14 @@ typedef void *	FHANDLE;
 extern int	create_fs(char *, int);
 extern void	*fsmount(char *, char *);
 extern void	*fsopen(void *, char *, unsigned short);
-extern void	*fscreate(void *, char *);
+extern void	*fscreate(void *, char *, unsigned int);
+
+/*
+ * File type (used as argument to fscreate())
+ */
+
+#define	FTYPE_FILE	0x01
+#define FTYPE_DIR	0x02
 
 /*
 extern int	fslseek(void *, fs_u64_t, int);

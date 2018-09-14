@@ -332,3 +332,32 @@ add_ilist_entry(
 
 	return error;
 }
+
+/*
+ * Allocate a new inode.
+ */
+
+int
+inode_alloc(
+	struct fsmem	*fsm,
+	fs_u32_t	type,
+	fs_u64_t	*inump)
+{
+	int		error = 0;
+
+	/*
+	 * Get the free inode number from imap first.
+	 */
+
+	if ((error = get_free_inum(fsm, inump)) != 0) {
+		fprintf(stderr, "inode_alloc: Failed to get free inode "
+			"for %s\n", fsm->fsm_mntpt);
+		return error;
+	}
+	if ((error = add_ilist_entry(fsm, *inump, type)) != 0) {
+		fprintf(stderr, "inode_alloc: Failed to add ilist entry "
+			"of %llu for %s\n", *inump, fsm->fsm_mntpt);
+	}
+
+	return error;
+}

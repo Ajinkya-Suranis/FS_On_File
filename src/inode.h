@@ -16,5 +16,6 @@ struct minode {
 
 extern struct minode	*iget(struct fsmem *, fs_u64_t);
 extern int		iwrite(struct minode *);
+extern int		inode_alloc(struct fsmem *, fs_u32_t, fs_u64_t *);
 
 #endif

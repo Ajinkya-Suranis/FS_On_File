@@ -291,10 +291,14 @@ out:
 void *
 fscreate(
 	void			*fsh,
-	char			*path)
+	char			*path,
+	fs_u32_t		flags)
 {
 	struct file_handle	*fh = NULL;
-	int			i, len = strlen(path), last;
+	struct fsmem		*fsm = NULL;
+	fs_u64_t		inum;
+	int			i, len = strlen(path);
+	int			error = 0, last;
 
 	if (*path != '/') {
 		fprintf(stderr, "ERROR: %s: path must be absolute i.e. "
@@ -304,6 +308,11 @@ fscreate(
 	}
 	if (len == 1) {
 		fprintf(stderr, "ERROR: %s is invalid path\n", path);
+		errno = EINVAL;
+		return NULL;
+	}
+	if ((flags & FTYPE_MASK == FTYPE_MASK) || (flags & !FTYPE_MASK)) {
+		fprintf(stderr, "ERROR: Invalid flags\n");
 		errno = EINVAL;
 		return NULL;
 	}
@@ -319,6 +328,8 @@ fscreate(
 		fprintf(stderr, "ERROR: The file %s already exists\n", path);
 		return NULL;
 	}
+	fsm = fsh->fsh_mem;
+	assert(fsm != NULL);
 	for (i = 0, last = 0; i < len; i++) {
 		if (path[i] == '/') {
 			last = i;
@@ -333,4 +344,44 @@ fscreate(
 		}
 		path[last] = '/';
 	}
-	
+
+	/*
+	 * The file doesn't exist.
+	 * Allocate a new inode for it and create a new directory entry.
+	 */
+
+	if ((error = inode_alloc(fsm, flags, &inum)) != 0) {
+		return NULL;
+	}
+	for (i = len - 1; path[i] != '/'; i--);
+	fprintf(stdout, "INFO: Passing file name %s to add_direntry()\n",
+		path + i + 1);
+	if ((error = add_direntry(fsm, path + i + 1, inum)) != 0) {
+		fprintf(stderr, "ERROR: Failed to add direntry: name-%s, "
+			"inum: %llu for %s\n", path + i + 1, inum,
+			fsm->fsm_mntpt);
+		return NULL;
+	}
+
+	/*
+	 * Inode is successfully created and necessary metadata
+	 * is also written. Now fill the file handle structure
+	 * and return it to the caller.
+	 */
+
+	fh = (struct file_handle *)malloc(sizeof(struct file_handle))
+	if (fh == NULL) {
+		fprintf(stderr, "ERROR: Failed to allocate memory to "
+			"file handle for %s\n", fsm->fsm_mntpt);
+		errno = ENOMEM;
+		return NULL;
+	}
+	if ((fh->fh_inode = iget(fsm, inum)) == NULL) {
+		free(fh);
+		return NULL;
+	}
+	fh->fh_fsh = fsh;
+	fh->fh_curoffset = 0;
+
+	return fh;
+}
