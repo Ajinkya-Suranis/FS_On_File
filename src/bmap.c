@@ -31,16 +31,16 @@ bmap_direct(
         for (i = 0; i < MAX_DIRECT; i++) {
                 blkno = mp->mino_orgarea.dir[i].blkno;
                 len = mp->mino_orgarea.dir[i].len;
-                if ((len == 0) || (total + (ONE_K * len)) > offset) {
+                if ((len == 0) || (total + len << LOG_ONE_K) > offset) {
                         break;
                 }
-                total += (ONE_K * len);
+                total += len << LOG_ONE_K;
         }
         if (i == MAX_DIRECT || len == 0) {
                 return EINVAL;
         }
-        *len = total + (ONE_K * len) - offset;
-        *offp = blkno * ONE_K + (offset - total);
+        *len = total + (len << LOG_ONE_K) - offset;
+        *offp = blkno << LOG_ONE_K + (offset - total);
         *blknop = blkno;
 
         return 0;
