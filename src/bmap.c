@@ -39,7 +39,7 @@ bmap_direct(
         if (i == MAX_DIRECT || len == 0) {
                 return EINVAL;
         }
-        *len = total + (len << LOG_ONE_K) - offset;
+        *lenp = total + (len << LOG_ONE_K) - offset;
         *offp = blkno << LOG_ONE_K + (offset - total);
         *blknop = blkno;
 
@@ -49,7 +49,7 @@ bmap_direct(
 static int
 bmap_indirect(
         int             fd,
-        struct dinode   *mp,
+        struct minode   *mp,
         fs_u64_t        *blknop,
         fs_u64_t        *lenp,
         fs_u64_t        *offp,
@@ -67,9 +67,9 @@ bmap_indirect(
         ndirects = (int)(INDIR_BLKSZ/(sizeof(struct direct)));
 
         for (i = 0; i < MAX_INDIRECT; i++) {
-                blkno = mp->mino_orgarea.indir[i].blkno;
-                lseek(fd, blkno * ONE_K, SEEK_SET);
-                if (read(fd, buf, MAX_INDIRECT) != MAX_INDIRECT) {
+                blkno = mp->mino_orgarea.indir[i].ind_blkno;
+                lseek(fd, blkno << LOG_ONE_K, SEEK_SET);
+                if (read(fd, buf, INDIR_BLKSZ) != INDIR_BLKSZ) {
                         error = errno;
                         goto out;
                 }
@@ -78,7 +78,7 @@ bmap_indirect(
                         blkno = dir[j].blkno;
                         len = dir[j].len;
                         if (dir[j].len == 0 ||
-                            (total + (ONE_K * len)) > offset) {
+                            (total + (len << LOG_ONE_K)) > offset) {
                                 break;
                         }
                         total += (ONE_K * len);
@@ -96,9 +96,9 @@ bmap_indirect(
                 error = EINVAL;
                 goto out;
         }
-        *lenp = total + (ONE_K * len) - offset;
-        *offp = (blkno * ONE_K) + offset - total;
-        *blkno = blkno;
+        *lenp = total + (len << LOG_ONE_K) - offset;
+        *offp = (blkno << LOG_ONE_K) + offset - total;
+        *blknop = blkno;
 
 out:
         free(buf);
@@ -115,9 +115,9 @@ bmap_2indirect(
         fs_u64_t        offset)
 {
         struct direct   *dir;
-        fs_u64_t        blkno, *indir, total = 0;
+        fs_u64_t        blkno, *indir, total = 0, len;
         char            *indirbuf = NULL, *dirbuf = NULL;
-        int             i, j, k, nindirs, ndirs, erro = 0;
+        int             i, j, k, nindirs, ndirs, error = 0;
 
         /*
 	 * Firstly allocate a couple of INDIR_BLKSZ(8K) sized
@@ -136,7 +136,7 @@ bmap_2indirect(
         nindirs = INDIR_BLKSZ/(sizeof(fs_u64_t));
         ndirs = INDIR_BLKSZ/(sizeof(struct direct));
         for (i = 0; i < MAX_INDIRECT; i++) {
-                blkno = mp->mino_orgarea.indir[i].blkno;
+                blkno = mp->mino_orgarea.indir[i].ind_blkno;
                 lseek(fd, (blkno * ONE_K), SEEK_SET);
                 if (read(fd, indirbuf, INDIR_BLKSZ) != INDIR_BLKSZ) {
                         error = errno;

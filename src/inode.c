@@ -25,12 +25,16 @@ iget(
 	int			error = 0;
 
 	assert(sb != NULL);
+	/*
+	 * TODO: implement the functionality of 'lastino'
+	 */
+	/*
 	if (inum > sb->lastino) {
 		fprintf(stderr, "inode number %llu is invalid for %s\n",
 			inum, fsm->fsm_mntpt);
 		return NULL;
-	}
-	offset = inum * INOSIZE;
+	}*/
+	offset = inum << LOG_INOSIZE;
 	mino = (struct minode *)malloc(sizeof(struct minode));
 	if (!mino) {
 		fprintf(stderr, "Failed to allocate memory for inode %llu\n",
@@ -44,7 +48,7 @@ iget(
 		free(mino);
 		return NULL;
 	}
-	offset = (blkno * ONE_K) + off;
+	offset = (blkno << LOG_ONE_K) + off;
 	lseek(fsm->fsm_devfd, offset, SEEK_SET);
 	if (read(fsm->fsm_devfd, &mino->mino_dip, sizeof(struct dinode)) !=
 		 sizeof(struct dinode)) {
@@ -53,6 +57,7 @@ iget(
 		return NULL;
 	}
 	mino->mino_number = inum;
+	mino->mino_fsm = fsm;
 	mino->mino_bno = blkno;
 	return mino;
 }

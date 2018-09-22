@@ -65,7 +65,6 @@ out:
 			free(fsm->fsm_mntip);
 		}
 	}
-	free(tmp);
 	return error;
 }
 

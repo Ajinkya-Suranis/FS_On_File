@@ -1,5 +1,5 @@
 
-OBJS = mkfs.c mount.c
+OBJS = mkfs.c mount.c inode.c bmap.c
 CFLAG = -g
 CC = gcc
 
@@ -9,4 +9,4 @@ all:
 	done
 
 clean:
-	rm -rf mkfs.o mount.o
+	rm -rf mkfs.o mount.o inode.o bmap.o
