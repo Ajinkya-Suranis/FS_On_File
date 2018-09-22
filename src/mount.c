@@ -12,6 +12,7 @@
 
 static int		validate_sb(struct super_block *);
 static int		fill_inodes(struct fsmem *);
+static struct minode *	alloc_minode(struct fsmem *, fs_u64_t);
 
 static int
 validate_sb(
@@ -26,28 +27,72 @@ validate_sb(
 	return 0;
 }
 
+static struct minode *
+alloc_minode(
+	struct fsmem	*fsm,
+	fs_u64_t	inum)
+{
+	struct minode	*mino = NULL;
+ 	mino = (struct minode *)malloc(sizeof(struct minode));
+	if (!mino) {
+		fprintf(stderr, "Failed to allocate memory for in-core"
+			" inode\n");
+		return NULL;
+	}
+	bzero(mino, sizeof(struct minode));
+	mino->mino_fsm = fsm;
+	mino->mino_number = inum;
+ 	return mino;
+}
+
 static int
 fill_inodes(
 	struct fsmem	*fsm)
 {
+	struct minode	*mino = NULL;
+	char		*buf = NULL, *tmp = NULL;
+	fs_u64_t	off;
 	int		error = 1;
 
-	if ((fsm->fsm_ilip = iget(fsm, ILIST_INO)) == NULL) {
-		fprintf(stderr, "ERROR: Failed to get ilist inode\n");
+	tmp = buf = (char *)malloc(ONE_K);
+	if (!buf) {
+		fprintf(stderr, "Failed to allocate memory for ilist extent\n");
+		return 1;
+	}
+	off = fsm->fsm_sb->ilistblk + (ILIST_INO << LOG_INOSIZE);
+	lseek(fsm->fsm_devfd, off, SEEK_SET);
+	if (read(fsm->fsm_devfd, buf, ONE_K) != ONE_K) {
+		fprintf(stderr, "Failed to read initial inodes\n");
+		free(buf);
+		return 1;
+	}
+	mino = alloc_minode(fsm, ILIST_INO);
+	if (!mino) {
 		goto out;
 	}
-	if ((fsm->fsm_emapip = iget(fsm, EMAP_INO)) == NULL) {
-		fprintf(stderr, "ERROR: Failed to get emap inode\n");
+	bcopy(buf, &mino->mino_dip, sizeof(struct dinode));
+	fsm->fsm_ilip = mino;
+	buf += INOSIZE;
+	mino = alloc_minode(fsm, EMAP_INO);
+	if (!mino) {
 		goto out;
 	}
-	if ((fsm->fsm_imapip = iget(fsm, IMAP_INO)) == NULL) {
-		fprintf(stderr, "ERROR: Failed to get imap inode\n");
+	bcopy(buf, &mino->mino_dip, sizeof(struct dinode));
+	fsm->fsm_emapip = mino;
+	buf += INOSIZE;
+	mino = alloc_minode(fsm, IMAP_INO);
+        if (!mino) {
 		goto out;
 	}
-	if ((fsm->fsm_mntip = iget(fsm, MNTPT_INO)) == NULL) {
-		fprintf(stderr, "ERROR: Failed to get mntpt inode\n");
+	bcopy(buf, &mino->mino_dip, sizeof(struct dinode));
+	fsm->fsm_imapip = mino;
+	buf += INOSIZE;
+	mino = alloc_minode(fsm, MNTPT_INO);
+	if (!mino) {
 		goto out;
 	}
+	bcopy(buf, &mino->mino_dip, sizeof(struct dinode));
+	fsm->fsm_mntip = mino;
 	error = 0;
 
 out:
@@ -65,6 +110,7 @@ out:
 			free(fsm->fsm_mntip);
 		}
 	}
+	free(tmp);
 	return error;
 }
 

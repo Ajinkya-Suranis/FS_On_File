@@ -213,7 +213,7 @@ get_free_inum(
 	 * of which will be utilized and rest are marked free in imap.
 	 */
 
-	fsm->fsm_sb->iused += nbytes << 3 - 1;
+	fsm->fsm_sb->iused += (nbytes << 3) - 1;
 	lseek(fsm->fsm_devfd, SB_OFFSET, SEEK_SET);
 	if (write(fsm->fsm_devfd, fsm->fsm_sb, sizeof(struct super_block)) !=
 	    sizeof(struct super_block)) {
@@ -324,7 +324,7 @@ add_ilist_entry(
 			" for ilist inode of %s\n", offset, fsm->fsm_mntpt);
 		return error;
 	}
-	offset = blkno << LOG_ONE_K + off;
+	offset = (blkno << LOG_ONE_K) + off;
 	fprintf(stdout, "add_ilist_entry: INFO: Writing inode %llu at offset"
 		" %llu for %s\n", inum, offset, fsm->fsm_mntpt);
 	lseek(fsm->fsm_devfd, offset, SEEK_SET);

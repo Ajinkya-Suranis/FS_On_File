@@ -31,7 +31,7 @@ bmap_direct(
         for (i = 0; i < MAX_DIRECT; i++) {
                 blkno = mp->mino_orgarea.dir[i].blkno;
                 len = mp->mino_orgarea.dir[i].len;
-                if ((len == 0) || (total + len << LOG_ONE_K) > offset) {
+                if ((len == 0) || (total + (len << LOG_ONE_K)) > offset) {
                         break;
                 }
                 total += len << LOG_ONE_K;
@@ -40,7 +40,7 @@ bmap_direct(
                 return EINVAL;
         }
         *lenp = total + (len << LOG_ONE_K) - offset;
-        *offp = blkno << LOG_ONE_K + (offset - total);
+        *offp = (blkno << LOG_ONE_K) + (offset - total);
         *blknop = blkno;
 
         return 0;

@@ -123,7 +123,7 @@ write_ilist(
         dp->nblocks = 0;
         dp->orgtype = ORG_DIRECT;
 
-	init_ilistblk = (imap_firstblk + 8) * ONE_K;
+	init_ilistblk = (imap_firstblk + 8) << LOG_ONE_K;
         (void) lseek(fd, init_ilistblk, SEEK_SET);
 
         if (write(fd, buf, INIT_ILT_SIZE) < INIT_ILT_SIZE) {
@@ -131,8 +131,8 @@ write_ilist(
                 free(buf);
                 return 1;
         }
-        sb->lastblk += INIT_ILT_SIZE/ONE_K;
-        sb->freeblks -= INIT_ILT_SIZE/ONE_K;
+        sb->lastblk += INIT_ILT_SIZE >> LOG_ONE_K;
+        sb->freeblks -= INIT_ILT_SIZE >> LOG_ONE_K;
 
         free(buf);
         return 0;
