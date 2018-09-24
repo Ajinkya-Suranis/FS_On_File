@@ -32,9 +32,9 @@ alloc_emap(
                 fprintf(stderr, "Failed to allocate memory for emap\n");
                 return ENOMEM;
         }
-        bzero(buf, emap_sz);
+        memset(buf, 0xff, emap_sz);
         nexts = (nexts % 8 == 0) ? (nexts/8) : (nexts/8 + 1);
-        memset(buf, 0xff, nexts);
+        memset(buf, 0, nexts);
         (void) lseek(fd, sb->lastblk * 8192, SEEK_SET);
         if (write(fd, buf, emap_sz) < emap_sz) {
                 fprintf(stderr, "Error writing emap\n");
@@ -61,8 +61,8 @@ alloc_imap(
                 fprintf(stderr, "Failed to allocate memory for imap\n");
                 return ENOMEM;
         }
-        bzero(buf, 8192);
-        memset(buf, 0xf, 1);
+        memset(buf, 0xff, 8192);
+	buf[0] = 0xf0;
         (void)lseek(fd, sb->lastblk * ONE_K, SEEK_SET);
         if (write(fd, buf, 8192) < 8192) {
                 fprintf(stderr, "Error writing imap\n");

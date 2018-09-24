@@ -79,7 +79,7 @@ iwrite(
 		" %llu\n", ino->mino_number, ino->mino_bno);
 	lseek(ino->mino_fsm->fsm_devfd, offset, SEEK_SET);
 	if (write(ino->mino_fsm->fsm_devfd, &ino->mino_dip,
-		  INOSIZE) != INOSIZE) {
+		  sizeof(struct dinode)) != sizeof(struct dinode)) {
 		fprintf(stderr, "ERROR: failed to write inode number %llu:"
 			" %s\n",ino->mino_number, strerror(errno));
 		return 1;
@@ -122,6 +122,11 @@ get_free_inum(
 		}
 		memset(buf, 0, ONE_K);
 		while (1) {
+			if (off >= fsm->fsm_imapip->mino_size) {
+				assert(0);
+				free(buf);
+				return EINVAL;
+			}
 			if ((rd = internal_read(fsm->fsm_devfd, fsm->fsm_imapip,
 						buf, off, ONE_K)) != ONE_K) {
 				fprintf(stderr, "ERROR: Failed to read imap "
@@ -154,7 +159,6 @@ get_free_inum(
 			}
 			off += ONE_K;
 		}
-		assert(off < fsm->fsm_imapip->size);
 		fprintf(stdout, "Found the inode %llu free\n", inum);
 		if (metadata_write(fsm, off, buf, fsm->fsm_imapip) != ONE_K) {
 			error = errno;
@@ -198,7 +202,7 @@ get_free_inum(
 		return ENOMEM;
 	}
 	memset(buf, 0xff, nbytes);
-	buf[0] |= 0x1;
+	buf[0] &= ~(0x1);
 	lseek(fsm->fsm_devfd, blkno << LOG_ONE_K, SEEK_SET);
 	if (write(fsm->fsm_devfd, buf, nbytes) != nbytes) {
 		error = errno;
@@ -213,7 +217,7 @@ get_free_inum(
 	 * of which will be utilized and rest are marked free in imap.
 	 */
 
-	fsm->fsm_sb->iused += (nbytes << 3) - 1;
+	fsm->fsm_sb->iused++;
 	lseek(fsm->fsm_devfd, SB_OFFSET, SEEK_SET);
 	if (write(fsm->fsm_devfd, fsm->fsm_sb, sizeof(struct super_block)) !=
 	    sizeof(struct super_block)) {
@@ -249,7 +253,7 @@ add_ilist_entry(
 	int		error = 0;
 
 	assert((fsm->fsm_sb->iused - 1) << LOG_INOSIZE <= fsm->fsm_ilip->size);
-	assert((inum + 1) << LOG_INOSIZE  <= fsm->fsm_ilip->size);
+	assert((inum + 1) << LOG_INOSIZE <= fsm->fsm_ilip->size);
 
 	if ((inum + 1) << LOG_INOSIZE == fsm->fsm_ilip->size) {
 
@@ -265,14 +269,14 @@ add_ilist_entry(
 				"failed for %s\n", fsm->fsm_mntpt);
 			return error;
 		}
-		buf = (char *)malloc(ILIST_EXTSIZE);
+		buf = (char *)malloc(len >> LOG_ONE_K);
 		if (!buf) {
 			fprintf(stderr, "add_ilist_entry: failed to allocate "
 				"memory for ilist extent for %s\n",
 				fsm->fsm_mntpt);
 			return ENOMEM;
 		}
-		memset(buf, 0, ILIST_EXTSIZE);
+		memset(buf, 0, len >> LOG_ONE_K);
 		memset(&dp, 0, sizeof(struct dinode));
 
 		/*
@@ -280,7 +284,6 @@ add_ilist_entry(
 		 */
 
 		dp.type = type;
-		dp.size = ILIST_EXTSIZE << LOG_ONE_K;
 		dp.orgtype = ORG_DIRECT;
 		memcpy(buf, &dp, sizeof(struct dinode));
 
@@ -315,9 +318,6 @@ add_ilist_entry(
 	 */
 
 	offset = inum << LOG_INOSIZE;
-	dp.type = type;
-	dp.size = ILIST_EXTSIZE << LOG_ONE_K;
-	dp.orgtype = ORG_DIRECT;
 	if ((error = bmap(fsm->fsm_devfd, fsm->fsm_ilip, &blkno, &len, &off,
 			  offset)) != 0) {
 		fprintf(stderr, "add_ilist_entry: bmap failed at offset %llu"
@@ -328,6 +328,17 @@ add_ilist_entry(
 	fprintf(stdout, "add_ilist_entry: INFO: Writing inode %llu at offset"
 		" %llu for %s\n", inum, offset, fsm->fsm_mntpt);
 	lseek(fsm->fsm_devfd, offset, SEEK_SET);
+	if (read(fsm->fsm_devfd,  &dp, sizeof(struct dinode)) !=
+		 sizeof(struct dinode)) {
+		fprintf(stderr, "add_ilist_entry: failed to read inode %llu"
+			" from ilist for %s\n", inum, fsm->fsm_mntpt);
+		error = errno;
+		return error;
+	}
+	assert(dp->type == 0 && dp->size == 0 && dp->nblocks == 0 &&
+	       dp->orgtype == 0);
+	dp.type = type;
+	dp.orgtype = ORG_DIRECT;
 	if (write(fsm->fsm_devfd, &dp, sizeof(struct dinode)) !=
 	    sizeof(struct dinode)) {
 		fprintf(stderr, "add_ilist_entry: failed to write inode %llu"

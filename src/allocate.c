@@ -122,12 +122,13 @@ allocate(
 		 * chunk of set bit(s).
 		 */
 
-		if ((ret = traverse_emapbuf(buf, req, lenp, readsz)) != 0) {
+		ret = traverse_emapbuf(buf, req, lenp, readsz);
+		if (*lenp) {
 			found = 1;
 			blkno += ret;
 			break;
 		}
-		blkno += (readsz * 8);
+		blkno += (readsz << 3);
 		off += readsz;
 	}
 	if (!found) {

@@ -196,9 +196,10 @@ bmap_direct_to_indirect(
 {
 	struct direct	*dir = NULL;
 	fs_u64_t	off, blk, ln;
-	int		error = 0;
+	fs_u32_t	extsz = INDIR_BLKSZ >> LOG_ONE_K;
+	int		error = 0, i;
 
-	if ((error = allocate(fsm, 8, &blk, &ln)) != 0 || ln < 8) {
+	if ((error = allocate(fsm, extsz , &blk, &ln)) != 0 || ln < extsz) {
 		return error;
 	}
 	dir = (struct direct *)malloc(INDIR_BLKSZ);
@@ -208,9 +209,30 @@ bmap_direct_to_indirect(
 		return ENOMEM;
 	}
 	memset((void *)dir, 0, INDIR_BLKSZ);
-	dir[0].blkno = blkno;
-	dir[0].len = len;
-	off = blk * ONE_K;
+
+	/*
+	 * Copy the direct entries into the indirect extent buffer
+	 * and write it to disk.
+	 */
+
+	for (i = 0; i < MAX_DIRECT; i++) {
+		dir[i].blkno = mino->mino_orgarea.dir[i].blkno;
+		dir[i].len = mino->mino_orgarea.dir[i].len;
+		assert(dir[i].blkno != 0 && dir[i].len != 0);
+	}
+
+	/*
+	 * Update the orgtype of inode on-disk and add indirect
+	 * extent entry into the org area.
+	 */
+
+	dir[i].blkno = blkno;
+	dir[i].len = len;
+	bzero(&mino->mino_orgarea, sizeof(union org));
+	mino->mino_orgarea.indir[0].ind_blkno = blk;
+	mino->mino_orgtype = ORG_INDIRECT;
+
+	off = blk << LOG_ONE_K;
 	lseek(fsm->fsm_devfd, off, SEEK_SET);
 	if (write(fsm->fsm_devfd, dir, INDIR_BLKSZ) != INDIR_BLKSZ) {
 		fprintf(stderr, "bmap_direct_to_indirect: failed to write "
@@ -297,25 +319,26 @@ bmap_alloc(
 	struct fsmem	*fsm,
 	struct minode	*ino,
 	fs_u32_t	req,
-	fs_u64_t	*blknop,
-	fs_u32_t	*lenp)
+	fs_u64_t	*blknop)
 {
+	fs_u32_t	len;
 	int		error;
 
 	assert(ino->mino_orgtype == ORG_DIRECT ||
 	       ino->mino_orgtype == ORG_INDIRECT ||
 	       ino->mino_orgtype == ORG_2INDIRECT);
 
-	if ((error = allocate(fsm, req, blknop, lenp)) != 0) {
+	if ((error = allocate(fsm, req, blknop, &len)) != 0) {
 		return error;
 	}
 	if (ino->mino_orgtype == ORG_DIRECT) {
-		error = bmap_direct_alloc(fsm, ino, *blknop, *lenp);
+		error = bmap_direct_alloc(fsm, ino, *blknop, len);
+	}/*
 	} else if (ino->mino_orgtype == ORG_INDIRECT) {
-		error = bmap_indirect_alloc(fsm, ino, *blknop, *lenp);
+		error = bmap_indirect_alloc(fsm, ino, *blknop, len);
 	} else {
-		error = bmap_2indirect_alloc(fsm, ino, *blknop, *lenp);
-	}
+		error = bmap_2indirect_alloc(fsm, ino, *blknop, len);
+	}*/
 
 	return error;
 }

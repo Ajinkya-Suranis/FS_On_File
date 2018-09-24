@@ -97,7 +97,7 @@ internal_readdir(
 		return 0;
 	}
 	if ((rd = internal_read(mino->mino_fsm->fsm_devfd, mino, buf, offset,
-				len)) != len && errno) {
+				len)) != len) {
 		fprintf(stderr, "internal_readdir failed for inode %llu\n",
 			mino->mino_number);
 	}
@@ -145,6 +145,8 @@ lookup_path(
 				" for %s\n", inum, fsh->fsh_mem->fsm_mntpt);
 			return 0;
 		}
+		fprintf(stdout, "lookup: after iget, type: %u\n",
+			mino->mino_type);
 		found = 0;
 		for (;;) {
 			memset(buf, 0, 16 * DIRENTRY_LEN);
@@ -166,13 +168,19 @@ lookup_path(
 				}
 				dirp++;
 			}
-			if (!found) {
-				goto out;
+			if (found) {
+				break;
 			}
 			offset += nent * DIRENTRY_LEN;
 		}
+		if (!found) {
+			fprintf(stdout, "component %s not found\n",
+				path + start);
+			goto out;
+		}
 		start = end = ++i;
 		inum = dirp->inumber;
+		fprintf(stdout, "Next inode number is %llu\n", inum);
 	}
 
 out:
@@ -194,12 +202,15 @@ internal_read(
 	int		error = 0;
 
 	while (nread < len) {
+		if (remain == 0) {
+			break;
+		}
                 if ((error = bmap(fd, mino, &blkno, &sz, &off, curoff)) != 0) {
                         errno = error;
                         goto out;
                 }
                 readlen = MIN(remain, sz);
-                foff = (blkno * ONE_K) + off;
+                foff = (blkno << LOG_ONE_K) + off;
                 lseek(fd, foff, SEEK_SET);
                 if (read(fd, (buf + nread), (int)readlen) != (int)readlen) {
                         fprintf(stderr, "Failed to read from inode %llu at"
@@ -208,6 +219,7 @@ internal_read(
                 }
                 curoff += (fs_u64_t)readlen;
                 nread += readlen;
+		remain -= readlen;
         }
 
 out:
@@ -241,7 +253,7 @@ metadata_write(
 		return 0;
 	}
 	assert(off & (ONE_K - 1) == 0);
-	foff = (blkno * ONE_K) + off;
+	foff = (blkno << LOG_ONE_K) + off;
 	lseek(fsm->fsm_devfd, offset, SEEK_SET);
 	if ((nwrite = write(fsm->fsm_devfd, buf, ONE_K)) != ONE_K) {
 		fprintf(stderr, "Failed to write metadata inode %llu at offset"
@@ -330,7 +342,7 @@ fscreate(
 	}
 	fsm = fsh->fsh_mem;
 	assert(fsm != NULL);
-	for (i = 0, last = 0; i < len; i++) {
+	for (i = 1, last = 0; i < len; i++) {
 		if (path[i] == '/') {
 			last = i;
 		}
@@ -340,6 +352,7 @@ fscreate(
 		if(lookup_path(fsh, path) == 0) {
 			fprintf(stderr, "ERROR: %s doesn't exist\n", path);
 			errno = ENOENT;
+			path[last] = '/';
 			return NULL;
 		}
 		path[last] = '/';
