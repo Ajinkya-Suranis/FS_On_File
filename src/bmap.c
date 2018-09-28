@@ -318,21 +318,21 @@ int
 bmap_alloc(
 	struct fsmem	*fsm,
 	struct minode	*ino,
-	fs_u32_t	req,
-	fs_u64_t	*blknop)
+	fs_u64_t	req,
+	fs_u64_t	*blknop,
+	fs_u64_t	*lenp)
 {
-	fs_u32_t	len;
 	int		error;
 
 	assert(ino->mino_orgtype == ORG_DIRECT ||
 	       ino->mino_orgtype == ORG_INDIRECT ||
 	       ino->mino_orgtype == ORG_2INDIRECT);
 
-	if ((error = allocate(fsm, req, blknop, &len)) != 0) {
+	if ((error = allocate(fsm, req, blknop, lenp)) != 0) {
 		return error;
 	}
 	if (ino->mino_orgtype == ORG_DIRECT) {
-		error = bmap_direct_alloc(fsm, ino, *blknop, len);
+		error = bmap_direct_alloc(fsm, ino, *blknop, *lenp);
 	}/*
 	} else if (ino->mino_orgtype == ORG_INDIRECT) {
 		error = bmap_indirect_alloc(fsm, ino, *blknop, len);

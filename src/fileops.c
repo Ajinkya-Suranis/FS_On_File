@@ -9,8 +9,8 @@
 #include <string.h>
 #include <assert.h>
 
-int	internal_read(int, struct minode *, char *, fs_u64_t, fs_u32_t);
-int	lookup_path(void *, char *);
+int		internal_read(int, struct minode *, char *, fs_u64_t, fs_u32_t);
+static int	lookup_path(struct fsmem *, char *, struct direntry *);
 
 /*
  * Read the directory specified by 'fh' handle.
@@ -105,10 +105,11 @@ internal_readdir(
 	return rd/DIRENTRY_LEN;
 }
 
-int
+static int
 lookup_path(
-	void		*fsh,
-	char		*path)
+	struct fsmem	*fsm,
+	char		*path,
+	struct direntry	*entp)
 {
 	struct direntry	*dirp = NULL;
 	struct minode	*mino = NULL;
@@ -117,6 +118,10 @@ lookup_path(
 	int		start = 1, end = strlen(path) - 1;
 	int		i = 1, j, nent, found = 0;
 
+	if (entp) {
+		memset(entp, 0, sizeof(struct direntry));
+	}
+
 	/*
 	 * Allocate buffer for directory entries.
 	 * We'll be reading 16 directory entries
@@ -124,6 +129,11 @@ lookup_path(
 	 */
 
 	buf = (char *)malloc(16 * DIRENTRY_LEN);
+	if (!buf) {
+		fprintf(stderr, "Failed to allocate memory for lookup "
+			"buffer for %s\n", fsm->fsm_mntpt);
+		return 0;
+	}
 
 	for (;;) {
 		if (path[i] != '/' && path[i] != '\0') {
@@ -139,10 +149,10 @@ lookup_path(
 			fprintf(stdout, "%c", path[j]);
 		}
 		fprintf(stdout, "\n");
-		mino = iget(fsh->fsh_mem, inum);
+		mino = iget(fsm, inum);
 		if (mino == NULL) {
 			fprintf(stderr, "lookup_path: Failed to read inode %llu"
-				" for %s\n", inum, fsh->fsh_mem->fsm_mntpt);
+				" for %s\n", inum, fsm->fsm_mntpt);
 			return 0;
 		}
 		fprintf(stdout, "lookup: after iget, type: %u\n",
@@ -169,6 +179,10 @@ lookup_path(
 				dirp++;
 			}
 			if (found) {
+				if (entp) {
+					memcpy(entp, dirp,
+					       sizeof(struct direntry));
+				}
 				break;
 			}
 			offset += nent * DIRENTRY_LEN;
@@ -176,6 +190,7 @@ lookup_path(
 		if (!found) {
 			fprintf(stdout, "component %s not found\n",
 				path + start);
+			errno = ENOENT;
 			goto out;
 		}
 		start = end = ++i;
@@ -231,9 +246,7 @@ out:
  * This isn't a generic write routine to
  * a structural inode; it has some restrictions,
  * like: the write area must be inside the
- * allocated blocks for the inode in picture,
- * offset must be multiple of 1024 and write
- * size must be 1024.
+ * allocated blocks for the inode.
  */
 
 int
@@ -241,21 +254,20 @@ metadata_write(
 	struct fsmem	*fsm,
 	fs_u64_t	offset,
 	char		*buf,
+	int		len,
 	struct minode	*ino)
 {
 	fs_u64_t	off, sz, blkno, foff;
 	int		error = 0, nwrite = 0;
 
-	assert(offset & (ONE_K - 1) == 0);
 	error = bmap(fsm->fsm_devfd, ino, &blkno, &sz, &off, offset);
 	if (error) {
 		errno = error;
 		return 0;
 	}
-	assert(off & (ONE_K - 1) == 0);
 	foff = (blkno << LOG_ONE_K) + off;
 	lseek(fsm->fsm_devfd, offset, SEEK_SET);
-	if ((nwrite = write(fsm->fsm_devfd, buf, ONE_K)) != ONE_K) {
+	if ((nwrite = write(fsm->fsm_devfd, buf, len)) != len) {
 		fprintf(stderr, "Failed to write metadata inode %llu at offset"
 			" %llu for %s\n", ino->inumber, foff, fsm->fsm_mntpt);
 		return 0;
@@ -306,7 +318,9 @@ fscreate(
 	char			*path,
 	fs_u32_t		flags)
 {
+	struct direntry		ent;
 	struct file_handle	*fh = NULL;
+	struct minode		*parent = NULL;
 	struct fsmem		*fsm = NULL;
 	fs_u64_t		inum;
 	int			i, len = strlen(path);
@@ -336,7 +350,7 @@ fscreate(
 	 * if parent isn't the root directory.
 	 */
 
-	if (lookup_path(fsh, path) != 0) {
+	if (lookup_path(fsh, path, NULL) != 0) {
 		fprintf(stderr, "ERROR: The file %s already exists\n", path);
 		return NULL;
 	}
@@ -349,7 +363,7 @@ fscreate(
 	}
 	if (last != 0) {
 		path[last] = '\0';
-		if(lookup_path(fsh, path) == 0) {
+		if(lookup_path(fsh, path, &ent) == 0) {
 			fprintf(stderr, "ERROR: %s doesn't exist\n", path);
 			errno = ENOENT;
 			path[last] = '/';
@@ -363,13 +377,21 @@ fscreate(
 	 * Allocate a new inode for it and create a new directory entry.
 	 */
 
+	assert(ent.inumber != 0);
+	if ((parent = iget(fsm, ent.inumber)) == NULL) {
+		fprintf(stderr, "Failed to get inode %llu of %s\n", ent.inumber,
+			fsm->fsm_mntpt);
+		return NULL;
+	}
+	assert(parent->mino_type == IFDIR);
 	if ((error = inode_alloc(fsm, flags, &inum)) != 0) {
 		return NULL;
 	}
+
 	for (i = len - 1; path[i] != '/'; i--);
 	fprintf(stdout, "INFO: Passing file name %s to add_direntry()\n",
 		path + i + 1);
-	if ((error = add_direntry(fsm, path + i + 1, inum)) != 0) {
+	if ((error = add_direntry(fsm, parent, path + i + 1, inum)) != 0) {
 		fprintf(stderr, "ERROR: Failed to add direntry: name-%s, "
 			"inum: %llu for %s\n", path + i + 1, inum,
 			fsm->fsm_mntpt);

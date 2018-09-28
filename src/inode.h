@@ -13,6 +13,9 @@ struct minode {
 #define mino_nblocks	mino_dip.nblocks
 #define mino_orgtype	mino_dip.orgtype
 #define mino_orgarea	mino_dip.orgarea
+#define mino_typespec	mino_dip.spec
+#define mino_dirspec	mino_typespec.ts_dir
+#define mino_ndirents	mino_dirspec.ds_ndirents
 
 extern struct minode	*iget(struct fsmem *, fs_u64_t);
 extern int		iwrite(struct minode *);

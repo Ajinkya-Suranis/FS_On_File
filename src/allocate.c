@@ -8,18 +8,17 @@
 
 #define EMAP_BLKSZ	8192
 
-static fs_u32_t	traverse_emapbuf(char *, fs_u32_t, fs_u32_t *, int);
+static fs_u64_t	traverse_emapbuf(char *, fs_u64_t, fs_u64_t *, int);
 
-static fs_u32_t
+static fs_u64_t
 traverse_emapbuf(
-	char		buf,
-	fs_u32_t	req,
-	fs_u32_t	*lenp,
+	char		*buf,
+	fs_u64_t	req,
+	fs_u64_t	*lenp,
 	int		bufsz)
 {
 	int		i, j, next = 0;
-	int		start, end;
-	fs_u32_t	nbits = 0;
+	fs_u64_t	nbits = 0, start, end;
 
 	start = end = -1;
 	for (i = 0; i < bufsz; i++) {
@@ -28,7 +27,7 @@ traverse_emapbuf(
 			if (buf[i] & (1 << j)) {
 				if (start == -1) {
 					assert(next == 0);
-					start = end = nbits + j;
+					start = end = nbits + (fs_u64_t)j;
 				} else {
 					end++;
 				}
@@ -71,12 +70,12 @@ traverse_emapbuf(
 int
 allocate(
 	struct fsmem	*fsm,
-	fs_u32_t	req,
+	fs_u64_t	req,
 	fs_u64_t	*blknop,
-	fs_u32_t	*lenp)
+	fs_u64_t	*lenp)
 {
 	fs_u64_t	off = 0, sz, blkno = 0;
-	fs_u32_t	ret;
+	fs_u64_t	ret;
 	char		*buf = NULL;
 	int		rd, readsz, found = 0;
 

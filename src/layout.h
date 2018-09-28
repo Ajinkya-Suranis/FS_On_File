@@ -193,6 +193,14 @@ union org {
 	struct indirect	indir[MAX_INDIRECT];
 };
 
+struct dirspec {
+	fs_u64_t	ds_ndirents;
+};
+
+union typespec {
+	struct dirspec	ts_dir;
+};
+
 /*
  * On-disk inode structure.
  */
@@ -205,6 +213,7 @@ struct dinode {
 	fs_u32_t	orgtype;
 	fs_u32_t	pad2;
 	union org	orgarea;
+	union typespec	spec;
 };
 
 #endif /*_FS_LAYOUT_H_*/

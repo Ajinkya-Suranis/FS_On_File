@@ -99,9 +99,9 @@ get_free_inum(
 	struct fsmem	*fsm,
 	fs_u64_t	*inump)
 {
-	fs_u64_t	off = 0, blkno;
+	fs_u64_t	off = 0, blkno, len;
 	fs_u64_t	inum = 0;
-	fs_u32_t	rd, len;
+	fs_u32_t	rd;
 	char		*buf = NULL, bit;
 	int		i, j, error = 0, nbytes = 0;
 
@@ -160,7 +160,8 @@ get_free_inum(
 			off += ONE_K;
 		}
 		fprintf(stdout, "Found the inode %llu free\n", inum);
-		if (metadata_write(fsm, off, buf, fsm->fsm_imapip) != ONE_K) {
+		if (metadata_write(fsm, off, buf, ONE_K, fsm->fsm_imapip) !=
+				   ONE_K) {
 			error = errno;
 			free(buf);
 			return error;
@@ -190,7 +191,7 @@ get_free_inum(
 
 	if ((error = bmap_alloc(fsm, fsm->fsm_imapip, IMAP_EXTSIZE,
 				&blkno, &len)) != 0) {
-		fprintf("get_free_inum: imap allocation failed for %s\n",
+		fprintf(stderr, "get_free_inum: imap allocation failed for %s\n",
 			fsm->fsm_mntpt);
 		return error;
 	}
@@ -247,8 +248,7 @@ add_ilist_entry(
 	fs_u32_t	type)
 {
 	struct dinode	dp;
-	fs_u64_t	blkno, offset, off;
-	fs_u32_t	len;
+	fs_u64_t	blkno, offset, off, len;
 	char		*buf = NULL;
 	int		error = 0;
 
