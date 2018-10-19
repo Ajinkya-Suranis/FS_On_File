@@ -102,7 +102,7 @@ internal_readdir(
 			mino->mino_number);
 	}
 
-	return rd/DIRENTRY_LEN;
+	return (int)rd/DIRENTRY_LEN;
 }
 
 static int

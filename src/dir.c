@@ -23,10 +23,9 @@ add_direntry(
 	char		*name,
 	fs_u64_t	inum)
 {
-	struct direntry	ent;
-	fs_u64_t	blkno, len;
-	char		*buf = NULL;
-	int		error = 0;
+	struct direntry	ent, *buf = NULL;
+	fs_u64_t	blkno, len, offset = 0;
+	int		i, error = 0, nent, remain;
 
 	assert(inum != 0);
 	assert((parent->mino_nblocks << LOG_ONE_K) >=
@@ -49,12 +48,10 @@ add_direntry(
 			return error;
 		}
 		assert(len <= DIR_ALLOCSZ);
-		buf = (char *)malloc(len << LOG_ONE_K);
+		buf = (struct direntry *)malloc(len << LOG_ONE_K);
 		memset(buf, 0, len << LOG_ONE_K);
-		memset(&ent, 0, DIRENTRY_LEN);
-		strncpy(ent->name, name, strlen(name));
-		ent->inumber = inum;
-		memcpy(buf, &ent, DIRENTRY_LEN);
+		strncpy(buf->name, name, strlen(name));
+		buf->inumber = inum;
 		lseek(fsm->fsm_devfd, blkno << LOG_ONE_K, SEEK_SET);
 		if (write(fsm->fsm_devfd, buf, len << LOG_ONE_K) !=
 			  len << LOG_ONE_K) {
@@ -84,7 +81,7 @@ add_direntry(
 			}
 			parent->mino_size += DIRENTRY_LEN;
 		} else {
-			buf = (char *)malloc(DIR_ALLOCSZ << LOG_ONE_K);
+			buf = (struct direntry *)malloc(DIR_ALLOCSZ << LOG_ONE_K);
 			if (buf == NULL) {
 				fprintf(stderr, "add_direntry: Failed to "
 					"allocate memory for internal buffer"
@@ -92,5 +89,47 @@ add_direntry(
 				return ENOMEM;
 			}
 			memset(buf, 0, DIR_ALLOCSZ << LOG_ONE_K);
-			
+
+			/*
+			 * Search for a vacant directory entry in the
+			 * already allocated extents. We must be able to
+			 * find such entry; if not, then there is some
+			 * inconsistency in the directory metadata!
+			 */
+
+			for (;;) {
+				if (offset == parent->mino_size) {
+					break;
+				}
+				remain = MIN(parent->mino_size - offset,
+					     DIR_ALLOCSZ << LOG_ONE_K);
+				nent = internal_readdir(parent, buf, offset,
+							remain/DIRENTRY_LEN);
+				if (nent < remain/DIRENTRY_LEN) {
+					free(buf);
+					return errno;
+				}
+				for (i = 0; i < nent; i++) {
+
+					/*
+					 * look for the direntry for which
+					 * inode number is zero.
+					 * Since inode number of ilist inode
+					 * is 0, it will be an exception
+					 */
+
+					if (offset == 0 && i == 0) {
+						continue;
+					}
+					if (buf[i].inumber == 0) {
+						fprintf(stdout, "Found vacant "
+							"entry at %llu offset",
+							offset);
+						memcpy(buf[i].name, name, 56);
+						buf[i].inumber = inum;
+						break;
+					}
+					offset += DIRENTRY_LEN;
+				}
+				if (
 		}
