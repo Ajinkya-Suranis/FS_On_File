@@ -60,11 +60,11 @@ traverse_emapbuf(
  * it means that we found at least one block
  * free in the file system.
  * The starting block number and length of
- * allocated chunk is filled in *blkno and *lenp
- * respectively.
- * The caller may need to call this function again
- * in case the allocated chunk size is less than
- * the requested one.
+ * allocated chunk are filled in *blkno and
+ * *lenp respectively.
+ * The caller may need to call this function
+ * multiple times in case the allocated chunk
+ * size is less than the requested one.
  */
 
 int
@@ -109,7 +109,7 @@ allocate(
 		readsz = MIN(EMAP_BLKSZ, (int)(sz - off));
 		memset(buf, 0, EMAP_BLKSZ);
 		if ((rd = internal_read(fsm->fsm_devfd, fsm->fsm_emapip, buf,
-				   off, readsz)) != readsz) {
+					off, readsz)) != readsz) {
 			fprintf("allocate: Failed to read emap file at offset"
 				" %llu for %s\n", off, fsm->fsm_mntpt);
 			free(buf);
@@ -127,7 +127,7 @@ allocate(
 			blkno += ret;
 			break;
 		}
-		blkno += (readsz << 3);
+		blkno += ((unsigned long long)readsz << 3);
 		off += readsz;
 	}
 	if (!found) {
@@ -142,9 +142,29 @@ allocate(
 	}
 
 	/*
-	 * write the buffer to emap file, sinceit's changed.
+	 * write the buffer to emap file, since it's changed.
 	 * TODO: Fix issue #2 in github for optimization.
 	 */
+
+	if (metadata_write(fsm, off, buf, (int)readsz, fsm->fsm_emapip) !=
+			   (int)readsz) {
+		free(buf);
+		return errno;
+	}
+
+	/*
+	 * Decrement the free block count by the allocated size
+	 * and write the superblock to disk.
+	 */
+
+	fsm->fsm_sb->freeblks -= *lenp;
+	if (write(fsm->fsm_devfd, fsm->fsm_sb, sizeof(struct super_block)) !=
+            sizeof(struct super_block)) {
+		fprintf(stderr, "allocate: Failed to write super block"
+			" for %s\n", fsm->fsm_mntpt);
+		free(buf);
+		return errno;
+	}
 
 	*blknop = blkno;
 	free(buf);

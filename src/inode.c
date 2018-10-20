@@ -229,6 +229,13 @@ get_free_inum(
 		*inump = inum;
 	}
 
+	/*
+	 * Increase the size of imap file
+	 */
+
+	fsm->fsm_imapip->mino_size += IMAP_EXTSIZE << LOG_ONE_K;
+	error = iwrite(fsm->fsm_imapip);
+
 	free(buf);
 	return error;
 }

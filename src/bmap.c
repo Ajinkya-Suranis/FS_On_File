@@ -40,7 +40,7 @@ bmap_direct(
                 return EINVAL;
         }
         *lenp = total + (len << LOG_ONE_K) - offset;
-        *offp = (blkno << LOG_ONE_K) + (offset - total);
+        *offp = offset - total;
         *blknop = blkno;
 
         return 0;
@@ -64,7 +64,7 @@ bmap_indirect(
         if (buf == NULL) {
                 return ENOMEM;
         }
-        ndirects = (int)(INDIR_BLKSZ/(sizeof(struct direct)));
+        ndirects = INDIR_BLKSZ/(sizeof(struct direct));
 
         for (i = 0; i < MAX_INDIRECT; i++) {
                 blkno = mp->mino_orgarea.indir[i].ind_blkno;
@@ -81,7 +81,7 @@ bmap_indirect(
                             (total + (len << LOG_ONE_K)) > offset) {
                                 break;
                         }
-                        total += (ONE_K * len);
+                        total += (len << LOG_ONE_K);
                 }
                 if (j < ndirects) {
                         break;
@@ -97,7 +97,7 @@ bmap_indirect(
                 goto out;
         }
         *lenp = total + (len << LOG_ONE_K) - offset;
-        *offp = (blkno << LOG_ONE_K) + offset - total;
+        *offp = offset - total;
         *blknop = blkno;
 
 out:
@@ -173,7 +173,7 @@ bmap_2indirect(
                 goto out;
         }
         *lenp = total + (ONE_K * len) - offset;
-        *offp = (blkno * ONE_K) + offset - total;
+        *offp = offset - total;
         *blknop = blkno;
 
 out:
@@ -190,9 +190,9 @@ out:
 static int
 bmap_direct_to_indirect(
 	struct fsmem	*fsm,
-	struct minode	*ino,
+	struct minode	*mino,
 	fs_u64_t	blkno,
-	fs_u32_t	len)
+	fs_u64_t	len)
 {
 	struct direct	*dir = NULL;
 	fs_u64_t	off, blk, ln;
@@ -255,7 +255,7 @@ bmap_direct_alloc(
 	struct fsmem	*fsm,
 	struct minode	*ino,
 	fs_u64_t	blkno,
-	fs_u32_t	len)
+	fs_u64_t	len)
 {
 	int		i, error = 0;
 
@@ -339,6 +339,16 @@ bmap_alloc(
 	} else {
 		error = bmap_2indirect_alloc(fsm, ino, *blknop, len);
 	}*/
+
+	/*
+	 * In case of allocation success, increase the 'nblocks'
+	 * of the inode and write to disk.
+	 * Increasing the size of inode (if applicable) is the
+	 * responsibility of caller.
+	 */
+
+	ino->mino_nblocks += *lenp;
+	error = iwrite(ino);
 
 	return error;
 }

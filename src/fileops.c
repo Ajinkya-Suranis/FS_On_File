@@ -170,7 +170,7 @@ lookup_path(
 					dirp->name);
 				if (strlen(dirp->name) == (end - start + 1) &&
 				    strncmp(path + start, dirp->name,
-				    (end - start + 1))) {
+				    (end - start + 1)) == 0) {
 					fprintf(stdout, "Found matching entry:",
 						dirp->name);
 					found = 1;
@@ -224,7 +224,7 @@ internal_read(
                         errno = error;
                         goto out;
                 }
-                readlen = MIN(remain, sz);
+                readlen = MIN(remain, (fs_u32_t)sz);
                 foff = (blkno << LOG_ONE_K) + off;
                 lseek(fd, foff, SEEK_SET);
                 if (read(fd, (buf + nread), (int)readlen) != (int)readlen) {
@@ -370,6 +370,8 @@ fscreate(
 			return NULL;
 		}
 		path[last] = '/';
+	} else {
+		ent.inumber = fs_u32_t;
 	}
 
 	/*

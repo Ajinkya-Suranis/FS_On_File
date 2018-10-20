@@ -131,5 +131,31 @@ add_direntry(
 					}
 					offset += DIRENTRY_LEN;
 				}
-				if (
+				if (i != nent) {
+					break;
+				}
+				offset += (fs_u64_t)remain;
+			}
+			if (offset == parent->mino_size) {
+				fprintf(stderr, "FATAL BUG: no free space "
+					"found in directory blocks\n");
+				assert(0);
+				free(buf);
+				return EIO;
+			}
+			if (metadata_write(fsm, offset, (char *)buf, remain,
+					   parent) != remain) {
+				free(buf);
+				return errno;
+			}
 		}
+	}
+
+	parent->mino_dirspec.ds_ndirents++;
+	error = iwrite(parent);
+	if (buf) {
+		free(buf);
+	}
+
+	return error;
+}
