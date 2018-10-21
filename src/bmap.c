@@ -265,6 +265,8 @@ bmap_direct_alloc(
 		}
 	}
 	if (i != MAX_DIRECT) {
+		printf("Adding %llu blkno and %llu len to inode\n",
+			blkno, len);
 		/*
 		 * we've found a vacant entry in inode.
 		 * Fill it with new extent entry.
@@ -324,6 +326,7 @@ bmap_alloc(
 {
 	int		error;
 
+	printf("Entered Writing inode \n");
 	assert(ino->mino_orgtype == ORG_DIRECT ||
 	       ino->mino_orgtype == ORG_INDIRECT ||
 	       ino->mino_orgtype == ORG_2INDIRECT);

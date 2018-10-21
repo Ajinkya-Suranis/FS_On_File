@@ -72,6 +72,7 @@ iwrite(
 {
 	fs_u64_t	offset;
 
+	printf("Entered iwrite\n");
 	assert(ino != NULL && ino->mino_fsm != NULL && ino->mino_bno != 0);
 	offset = (ino->mino_bno << LOG_ONE_K) +
 		  ((ino->mino_number) << LOG_INOSIZE);
@@ -113,7 +114,7 @@ get_free_inum(
 	 * we don't need to allocate a new extent.
 	 */
 
-	if ((fsm->fsm_imapip->size << 3) > fsm->fsm_sb->iused) {
+	if ((fsm->fsm_imapip->mino_size << 3) > fsm->fsm_sb->iused) {
 		buf = (char *)malloc(ONE_K);
 		if (!buf) {
 			fprintf(stderr, "ERROR: Failed to allocate memory "
@@ -137,11 +138,13 @@ get_free_inum(
 			 * scan the buffer and look for first set bit
 			 */
 			for (i = 0; i < ONE_K; i++) {
-				if (buf[i] & 0xff != 0) {
+				printf("buf[%d] = %d\n", i, buf[i]);
+				if (buf[i] != 0) {
 					break;
 				}
 			}
 			inum += (fs_u64_t)i << 3;
+			printf("inum value: %llu\n", inum);
 			if (i != ONE_K) {
 				/*
 				 * found the free inode.
@@ -153,6 +156,7 @@ get_free_inum(
 						break;
 					}
 					bit <<= 1;
+					printf("In the loop\n");
 					inum++;
 				}
 				break;
@@ -180,6 +184,7 @@ get_free_inum(
 				"super block\n");
 			error = errno;
 		}
+		*inump = inum;
 		free(buf);
 		return error;
 	}
@@ -202,7 +207,7 @@ get_free_inum(
 			"imap extent for %s\n", fsm->fsm_mntpt);
 		return ENOMEM;
 	}
-	memset(buf, 0xff, nbytes);
+	memset(buf, -1, nbytes);
 	buf[0] &= ~(0x1);
 	lseek(fsm->fsm_devfd, blkno << LOG_ONE_K, SEEK_SET);
 	if (write(fsm->fsm_devfd, buf, nbytes) != nbytes) {
@@ -259,10 +264,11 @@ add_ilist_entry(
 	char		*buf = NULL;
 	int		error = 0;
 
-	assert((fsm->fsm_sb->iused - 1) << LOG_INOSIZE <= fsm->fsm_ilip->size);
-	assert((inum + 1) << LOG_INOSIZE <= fsm->fsm_ilip->size);
+	assert((fsm->fsm_sb->iused - 1) << LOG_INOSIZE <=
+		fsm->fsm_ilip->mino_size);
+	assert(inum << LOG_INOSIZE <= fsm->fsm_ilip->mino_size);
 
-	if ((inum + 1) << LOG_INOSIZE == fsm->fsm_ilip->size) {
+	if ((inum + 1) << LOG_INOSIZE == fsm->fsm_ilip->mino_size) {
 
 		/*
 		 * The ilist file is full of used inodes; no entry for
@@ -342,10 +348,11 @@ add_ilist_entry(
 		error = errno;
 		return error;
 	}
-	assert(dp->type == 0 && dp->size == 0 && dp->nblocks == 0 &&
-	       dp->orgtype == 0);
+	assert(dp.type == 0 && dp.size == 0 && dp.nblocks == 0 &&
+	       dp.orgtype == 0);
 	dp.type = type;
 	dp.orgtype = ORG_DIRECT;
+	lseek(fsm->fsm_devfd, offset, SEEK_SET);
 	if (write(fsm->fsm_devfd, &dp, sizeof(struct dinode)) !=
 	    sizeof(struct dinode)) {
 		fprintf(stderr, "add_ilist_entry: failed to write inode %llu"

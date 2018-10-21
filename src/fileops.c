@@ -25,10 +25,11 @@ static int	lookup_path(struct fsmem *, char *, struct direntry *);
 
 int
 fsread_dir(
-	void			*fh,
+	void			*vfh,
 	char			*buf,
 	fs_u32_t		nentries)
 {
+	struct file_handle	*fh;
 	struct udirentry	*udir = NULL;
 	struct direntry		*dir = NULL;
 	struct minode		*mino = NULL;
@@ -41,7 +42,7 @@ fsread_dir(
 	if (nentries == 0) {
 		return 0;
 	}
-	if (!buf || !fh) {
+	if (!buf || !vfh) {
 		errno = EINVAL;
 		return 0;
 	}
@@ -53,6 +54,7 @@ fsread_dir(
 		return 0;
 	}
 	memset(intbuf, 0, nentries * DIRENTRY_LEN);
+	fh = (struct file_handle *)vfh;
 	mino = fh->fh_inode;
 	offset = fh->fh_curoffset;
 	assert(offset % DIRENTRY_LEN == 0);
@@ -60,15 +62,15 @@ fsread_dir(
 
 	if ((rd = internal_read(fh->fh_fsh->fsh_mem->fsm_devfd, mino, intbuf,
 				offset, len)) != (int)len && errno) {
-		fprintf(stderr, "Failed to read directory inode %llu\n",
-			mino->mino_number);
+		fprintf(stderr, "Failed to read directory inode %llu: %s\n",
+			mino->mino_number, strerror(errno));
 	}
 	nentries = rd/DIRENTRY_LEN;
 	for (i = 0; i < nentries; i++) {
 		dir = (struct direntry *)intbuf;
 		udir = (struct udirentry *)buf;
-		strcpy(buf->udir_name, dir->name);
-		buf->udir_inum = dir->inumber;
+		strcpy(udir->udir_name, dir->name);
+		udir->udir_inum = dir->inumber;
 		buf += UDIRENTRY_LEN;
 		intbuf += DIRENTRY_LEN;
 	}
@@ -269,7 +271,8 @@ metadata_write(
 	lseek(fsm->fsm_devfd, offset, SEEK_SET);
 	if ((nwrite = write(fsm->fsm_devfd, buf, len)) != len) {
 		fprintf(stderr, "Failed to write metadata inode %llu at offset"
-			" %llu for %s\n", ino->inumber, foff, fsm->fsm_mntpt);
+			" %llu for %s\n", ino->mino_number, foff,
+			fsm->fsm_mntpt);
 		return 0;
 	}
 
@@ -278,22 +281,24 @@ metadata_write(
 
 int
 fsread(
-	void		*fh,
-	char		*buf,
-	fs_u32_t	len)
+	void			*vfh,
+	char			*buf,
+	fs_u32_t		len)
 {
-	struct minode	*mino = NULL;
-	struct fsmem	*fsm = NULL;
-	int		nread;
-	int		error = 0, fd;
+	struct file_handle	*fh;
+	struct minode		*mino = NULL;
+	struct fsmem		*fsm = NULL;
+	int			nread;
+	int			error = 0, fd;
 
 	if (len == 0) {
 		return 0;
 	}
-	if (fh == NULL || buf == NULL) {
+	if (vfh == NULL || buf == NULL) {
 		errno = EINVAL;
 		return 0;
 	}
+	fh = (struct file_handle *)vfh;
 	fsm = fh->fh_fsh->fsh_mem;
 	assert(fsm->fsm_devfd != 0);
 	assert(fsm->fsm_sb && fsm->fsm_ilip && fsm->fsm_emapip &&
@@ -302,7 +307,7 @@ fsread(
 	fd = fsm->fsm_devfd;
 	assert(mino != NULL);
 	nread = internal_read(fd, mino, buf, fh->fh_curoffset, len);
-	fh->fh_curoffset += (fs_u64_t)readlen;
+	fh->fh_curoffset += (fs_u64_t)nread;
 
 out:
 	return nread;
@@ -314,12 +319,13 @@ out:
 
 void *
 fscreate(
-	void			*fsh,
+	void			*vfsh,
 	char			*path,
 	fs_u32_t		flags)
 {
 	struct direntry		ent;
 	struct file_handle	*fh = NULL;
+	struct fs_handle	*fsh;
 	struct minode		*parent = NULL;
 	struct fsmem		*fsm = NULL;
 	fs_u64_t		inum;
@@ -337,11 +343,11 @@ fscreate(
 		errno = EINVAL;
 		return NULL;
 	}
-	if ((flags & FTYPE_MASK == FTYPE_MASK) || (flags & !FTYPE_MASK)) {
+/*	if ((flags & FTYPE_MASK == FTYPE_MASK) || (flags & ~FTYPE_MASK)) {
 		fprintf(stderr, "ERROR: Invalid flags\n");
 		errno = EINVAL;
 		return NULL;
-	}
+	}*/
 
 	/*
 	 * First, do lookup on full path and see if the file/directory
@@ -350,7 +356,8 @@ fscreate(
 	 * if parent isn't the root directory.
 	 */
 
-	if (lookup_path(fsh, path, NULL) != 0) {
+	fsh = (struct fs_handle *)vfsh;
+	if (lookup_path(fsh->fsh_mem, path, NULL) != 0) {
 		fprintf(stderr, "ERROR: The file %s already exists\n", path);
 		return NULL;
 	}
@@ -363,7 +370,7 @@ fscreate(
 	}
 	if (last != 0) {
 		path[last] = '\0';
-		if(lookup_path(fsh, path, &ent) == 0) {
+		if(lookup_path(fsh->fsh_mem, path, &ent) == 0) {
 			fprintf(stderr, "ERROR: %s doesn't exist\n", path);
 			errno = ENOENT;
 			path[last] = '/';
@@ -371,7 +378,7 @@ fscreate(
 		}
 		path[last] = '/';
 	} else {
-		ent.inumber = fs_u32_t;
+		ent.inumber = MNTPT_INO;
 	}
 
 	/*
@@ -406,7 +413,7 @@ fscreate(
 	 * and return it to the caller.
 	 */
 
-	fh = (struct file_handle *)malloc(sizeof(struct file_handle))
+	fh = (struct file_handle *)malloc(sizeof(struct file_handle));
 	if (fh == NULL) {
 		fprintf(stderr, "ERROR: Failed to allocate memory to "
 			"file handle for %s\n", fsm->fsm_mntpt);

@@ -20,6 +20,7 @@ validate_sb(
 {
 	assert(sb != NULL);
 
+	printf("SB: %u\n", sb->magic);
 	if (sb->magic != FS_MAGIC || sb->version != FS_VERSION1 ||
 	    sb->ilistblk == 0 || sb->size == 0) {
 		return EINVAL;
@@ -159,7 +160,7 @@ fsmount(
 		fprintf(stderr, "%s: Not a directory\n", mntpt);
 		return NULL;
 	}
-	if ((devfd = open(dev, O_RDONLY)) < 0) {
+	if ((devfd = open(dev, O_RDWR)) < 0) {
 		fprintf(stderr, "Failed to open file %s: %s\n", dev,
 			strerror(errno));
 		return NULL;

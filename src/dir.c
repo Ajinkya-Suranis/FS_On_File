@@ -44,7 +44,7 @@ add_direntry(
 					&len)) != 0) {
 			fprintf(stderr, "add_direntry: bmap allocation failed "
 				"for directory inode %llu for %s\n",
-				parent->mino_inumber, fsm->fsm_mntpt);
+				parent->mino_number, fsm->fsm_mntpt);
 			return error;
 		}
 		assert(len <= DIR_ALLOCSZ);
@@ -61,6 +61,9 @@ add_direntry(
 			free(buf);
 			return errno;
 		}
+		printf("add_direntry: Current dir size is: %llu\n",
+			parent->mino_size);
+		parent->mino_size += DIRENTRY_LEN;
 	} else {
 
 		/*
@@ -72,11 +75,12 @@ add_direntry(
 		 */
 
 		memset(&ent, 0, DIRENTRY_LEN);
-		strncpy(ent->name, name, strlen(name));
-		ent->inumber = inum;
+		strncpy(ent.name, name, strlen(name));
+		ent.inumber = inum;
 		if (parent->mino_size < (parent->mino_nblocks << LOG_ONE_K)) {
 			if (metadata_write(fsm, parent->mino_size, (char *)&ent,
-					   DIRENTRY_LEN) != DIRENTRY_LEN) {
+					   DIRENTRY_LEN, parent) !=
+					   DIRENTRY_LEN) {
 				return errno;
 			}
 			parent->mino_size += DIRENTRY_LEN;
@@ -125,7 +129,8 @@ add_direntry(
 						fprintf(stdout, "Found vacant "
 							"entry at %llu offset",
 							offset);
-						memcpy(buf[i].name, name, 56);
+						memcpy(buf[i].name, name,
+							strlen(name));
 						buf[i].inumber = inum;
 						break;
 					}

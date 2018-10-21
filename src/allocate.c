@@ -4,6 +4,7 @@
 #include "inode.h"
 #include <errno.h>
 #include <assert.h>
+#include <string.h>
 #include "fileops.h"
 
 #define EMAP_BLKSZ	8192
@@ -110,8 +111,9 @@ allocate(
 		memset(buf, 0, EMAP_BLKSZ);
 		if ((rd = internal_read(fsm->fsm_devfd, fsm->fsm_emapip, buf,
 					off, readsz)) != readsz) {
-			fprintf("allocate: Failed to read emap file at offset"
-				" %llu for %s\n", off, fsm->fsm_mntpt);
+			fprintf(stderr, "allocate: Failed to read emap "
+				"file at offset %llu for %s\n", off,
+				fsm->fsm_mntpt);
 			free(buf);
 			return EIO;
 		}
@@ -140,6 +142,7 @@ allocate(
 		free(buf);
 		return ENOSPC;
 	}
+	printf("allocate: found %llu blkno with %llu length\n", blkno, *lenp);
 
 	/*
 	 * write the buffer to emap file, since it's changed.
@@ -158,6 +161,7 @@ allocate(
 	 */
 
 	fsm->fsm_sb->freeblks -= *lenp;
+	lseek(fsm->fsm_devfd, SB_OFFSET, SEEK_SET);
 	if (write(fsm->fsm_devfd, fsm->fsm_sb, sizeof(struct super_block)) !=
             sizeof(struct super_block)) {
 		fprintf(stderr, "allocate: Failed to write super block"
