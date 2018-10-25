@@ -12,6 +12,7 @@ extern int	create_fs(char *, int);
 extern void	*fsmount(char *, char *);
 extern void	*fsopen(void *, char *, unsigned short);
 extern void	*fscreate(void *, char *, unsigned int);
+extern int	fsread_dir(void *, char *, int);
 
 /*
  * File type (used as argument to fscreate())

@@ -35,7 +35,7 @@ alloc_emap(
         memset(buf, -1, emap_sz);
         nexts = (nexts % 8 == 0) ? (nexts/8) : (nexts/8 + 1);
         memset(buf, 0, nexts);
-        (void) lseek(fd, sb->lastblk * 8192, SEEK_SET);
+        (void) lseek(fd, sb->lastblk << LOG_ONE_K, SEEK_SET);
         if (write(fd, buf, emap_sz) < emap_sz) {
                 fprintf(stderr, "Error writing emap\n");
                 free(buf);
@@ -169,7 +169,7 @@ create_fs(
         sb->version = FS_VERSION1;
         sb->size = size;
         sb->freeblks = size - 1;
-        sb->lastblk = 2;
+        sb->lastblk = 16;
 	sb->iused = INIT_NINODES;
 
         if ((error = alloc_emap(sb, fd, size)) ||

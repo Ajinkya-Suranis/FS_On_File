@@ -53,6 +53,7 @@ add_direntry(
 		strncpy(buf->name, name, strlen(name));
 		buf->inumber = inum;
 		lseek(fsm->fsm_devfd, blkno << LOG_ONE_K, SEEK_SET);
+		printf("add_direntry: Writing at %llu blkno\n", blkno);
 		if (write(fsm->fsm_devfd, buf, len << LOG_ONE_K) !=
 			  len << LOG_ONE_K) {
 			fprintf(stderr, "add_direntry: Failed to write "

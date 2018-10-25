@@ -229,6 +229,7 @@ internal_read(
                 readlen = MIN(remain, (fs_u32_t)sz);
                 foff = (blkno << LOG_ONE_K) + off;
                 lseek(fd, foff, SEEK_SET);
+		printf("internal_read: Reading from blkno %llu\n", blkno);
                 if (read(fd, (buf + nread), (int)readlen) != (int)readlen) {
                         fprintf(stderr, "Failed to read from inode %llu at"
                                 " offset %llu\n", mino->mino_number, foff);

@@ -50,6 +50,7 @@ iget(
 	}
 	offset = (blkno << LOG_ONE_K) + off;
 	lseek(fsm->fsm_devfd, offset, SEEK_SET);
+	printf("iget:reading from blkno %llu and offset %llu\n", blkno, offset);
 	if (read(fsm->fsm_devfd, &mino->mino_dip, sizeof(struct dinode)) !=
 		 sizeof(struct dinode)) {
 		fprintf(stderr, "Failed to read inode %llu\n", inum);
@@ -77,7 +78,7 @@ iwrite(
 	offset = (ino->mino_bno << LOG_ONE_K) +
 		  ((ino->mino_number) << LOG_INOSIZE);
 	fprintf(stdout, "INFO: writing inode number %llu at ilist block number"
-		" %llu\n", ino->mino_number, ino->mino_bno);
+		" %llu with offset %llu\n", ino->mino_number, ino->mino_bno, offset);
 	lseek(ino->mino_fsm->fsm_devfd, offset, SEEK_SET);
 	if (write(ino->mino_fsm->fsm_devfd, &ino->mino_dip,
 		  sizeof(struct dinode)) != sizeof(struct dinode)) {

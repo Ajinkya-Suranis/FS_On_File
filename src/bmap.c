@@ -27,10 +27,12 @@ bmap_direct(
         int             i;
         fs_u64_t        total = 0, blkno, len;
 
+	printf("Entered bmap_direct\n");
 	assert(mp != NULL);
         for (i = 0; i < MAX_DIRECT; i++) {
                 blkno = mp->mino_orgarea.dir[i].blkno;
                 len = mp->mino_orgarea.dir[i].len;
+		printf("bmap_direct: blkno %llu, len: %llu\n", blkno, len);
                 if ((len == 0) || (total + (len << LOG_ONE_K)) > offset) {
                         break;
                 }

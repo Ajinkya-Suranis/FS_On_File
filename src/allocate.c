@@ -19,38 +19,50 @@ traverse_emapbuf(
 	int		bufsz)
 {
 	int		i, j, next = 0;
-	fs_u64_t	nbits = 0, start, end;
+	fs_u64_t	nbits = 0, start = -1;
 
-	start = end = -1;
 	for (i = 0; i < bufsz; i++) {
+		assert(nbits <= req);
+		if ((req - nbits > 7) && buf[i] == -1) {
+			if (start == -1) {
+				start = i << 3;
+			}
+			nbits += 8;
+			continue;
+		} else if (buf[i] == 0) {
+			if (start == -1) {
+				continue;
+			}
+			break;
+		}
 		next = 0;
 		for (j = 0; j < 8; j++) {
+			if (nbits >= req) {
+				break;
+			}
 			if (buf[i] & (1 << j)) {
 				if (start == -1) {
 					assert(next == 0);
-					start = end = nbits + (fs_u64_t)j;
-				} else {
-					end++;
+					start = (fs_u64_t)i << 3 + j;
 				}
 				buf[i] &= ~(1 << j);
+				nbits++;
 				if (j == 7) {
 					next = 1;
 				}
+			} else if (start != -1) {
+				break;
 			}
 		}
-		if (start == -1) {
-			continue;
+		if (nbits >= req || !next) {
+			break; 
 		}
-		if ((end - start + 1) >= req || !next) {
-			break;
-		}
-		nbits += 8;
 	}
 	if (start == -1) {
 		return 0;
 	}
-	*lenp = end - start + 1;
-	return (nbits + start);
+	*lenp = nbits;
+	return start;
 }
 
 /*
