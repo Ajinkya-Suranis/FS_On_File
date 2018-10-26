@@ -117,11 +117,24 @@ lookup_path(
 	struct minode	*mino = NULL;
 	fs_u64_t	inum = MNTPT_INO, offset = 0;
 	char		*buf = NULL;
-	int		start = 1, end = strlen(path) - 1;
+	int		start = 1, end = 1;
 	int		i = 1, j, nent, found = 0;
 
 	if (entp) {
 		memset(entp, 0, sizeof(struct direntry));
+	}
+	if (strlen(path) == 1) {
+		/*
+		 * '/' is being looked up.
+		 * This is special case.
+		 * Set the 'name' in direntry to null
+		 * and inode number to MNTPT_INO(3)
+		 */
+		if (entp) {
+			entp->name[0] = '\0';
+			entp->inumber = MNTPT_INO;
+		}
+		return 1;
 	}
 
 	/*
@@ -143,9 +156,6 @@ lookup_path(
 			i++;
 			continue;
 		}
-		if (start == end) {
-			break;
-		}
 		fprintf(stdout, "Component: ");
 		for (j = start; j <= end; j++) {
 			fprintf(stdout, "%c", path[j]);
@@ -157,8 +167,6 @@ lookup_path(
 				" for %s\n", inum, fsm->fsm_mntpt);
 			return 0;
 		}
-		fprintf(stdout, "lookup: after iget, type: %u\n",
-			mino->mino_type);
 		found = 0;
 		for (;;) {
 			memset(buf, 0, 16 * DIRENTRY_LEN);
@@ -170,9 +178,9 @@ lookup_path(
 			for (j = 0; j < nent; j++) {
 				fprintf(stdout, "Trying to match with %s",
 					dirp->name);
-				if (strlen(dirp->name) == (end - start + 1) &&
+				if (strlen(dirp->name) == (end - start) &&
 				    strncmp(path + start, dirp->name,
-				    (end - start + 1)) == 0) {
+				    (end - start)) == 0) {
 					fprintf(stdout, "Found matching entry:",
 						dirp->name);
 					found = 1;
@@ -194,6 +202,9 @@ lookup_path(
 				path + start);
 			errno = ENOENT;
 			goto out;
+		}
+		if (path[i] == '\0') {
+			break;
 		}
 		start = end = ++i;
 		inum = dirp->inumber;
@@ -428,5 +439,64 @@ fscreate(
 	fh->fh_fsh = fsh;
 	fh->fh_curoffset = 0;
 
+	return fh;
+}
+
+/*
+ * Open a file.
+ * Returns a file handle (void *) which will be used
+ * by the caller for further operations on the file.
+ */
+
+void *
+fsopen(
+	void			*vfsh,
+	char			*path,
+	fs_u32_t		flags)
+{
+	struct file_handle	*fh = NULL;
+	struct fs_handle	*fsh = NULL;
+	struct direntry		de;
+	struct minode		*mino = NULL;
+
+	if (!vfsh || !path) {
+		errno = EINVAL;
+		fprintf(stderr, "Failed to open file: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	/*
+	 * lookup if the file in 'path' exists.
+	 * For now we're returning an error if
+	 * the file doesn't exist.
+	 * TODO: if file doesn't exist and 'flags'
+	 * specifies creating one, then we'll create
+	 * a new file.
+	 */
+
+	fsh = (struct fs_handle *)vfsh;
+	if (lookup_path(fsh->fsh_mem, path, &de) == 0) {
+		fprintf(stderr, "The path %s doesn't exist\n", path);
+		return NULL;
+	}
+	fprintf(stdout, "Got inode number %llu from lookup\n", de.inumber);
+	mino = iget(fsh->fsh_mem, de.inumber);
+	if (mino == NULL) {
+		fprintf(stderr, "Failed to get inode %llu for %s\n",
+			fsh->fsh_mem, path);
+		return NULL;
+	}
+	fh = (struct file_handle *)malloc(sizeof(struct file_handle));
+	if (fh == NULL) {
+		fprintf(stderr, "ERROR: Failed to allocate memory to "
+			"file handle for %s\n", fsh->fsh_mem->fsm_mntpt);
+		errno = ENOMEM;
+		return NULL;
+	}
+	fh->fh_inode = mino;
+	fh->fh_fsh = fsh;
+	fh->fh_curoffset = 0;
+
+	fprintf(stdin, "Opened file %s successfully\n", path);
 	return fh;
 }

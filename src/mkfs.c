@@ -93,8 +93,8 @@ write_ilist(
         dp = (struct dinode *) buf;
         bzero((caddr_t)dp, INIT_ILT_SIZE);
         dp->type = IFILT;
-        dp->size = INIT_NINODES * INOSIZE;
-        dp->nblocks = INIT_ILT_SIZE/ONE_K;
+        dp->size = INIT_ILT_SIZE;
+        dp->nblocks = INIT_ILT_SIZE >> LOG_ONE_K;
         dp->orgtype = ORG_DIRECT;
         dp->orgarea.dir[0].blkno = sb->lastblk;
         dp->orgarea.dir[0].len = 4;
