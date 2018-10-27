@@ -280,7 +280,7 @@ metadata_write(
 		return 0;
 	}
 	foff = (blkno << LOG_ONE_K) + off;
-	lseek(fsm->fsm_devfd, offset, SEEK_SET);
+	lseek(fsm->fsm_devfd, foff, SEEK_SET);
 	if ((nwrite = write(fsm->fsm_devfd, buf, len)) != len) {
 		fprintf(stderr, "Failed to write metadata inode %llu at offset"
 			" %llu for %s\n", ino->mino_number, foff,

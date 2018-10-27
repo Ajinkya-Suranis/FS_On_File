@@ -139,13 +139,11 @@ get_free_inum(
 			 * scan the buffer and look for first set bit
 			 */
 			for (i = 0; i < ONE_K; i++) {
-				printf("buf[%d] = %d\n", i, buf[i]);
 				if (buf[i] != 0) {
 					break;
 				}
 			}
 			inum += (fs_u64_t)i << 3;
-			printf("inum value: %llu\n", inum);
 			if (i != ONE_K) {
 				/*
 				 * found the free inode.
@@ -157,7 +155,6 @@ get_free_inum(
 						break;
 					}
 					bit <<= 1;
-					printf("In the loop\n");
 					inum++;
 				}
 				break;
@@ -371,15 +368,17 @@ add_ilist_entry(
 int
 inode_alloc(
 	struct fsmem	*fsm,
-	fs_u32_t	type,
+	fs_u32_t	flags,
 	fs_u64_t	*inump)
 {
+	fs_u32_t	type;
 	int		error = 0;
 
 	/*
 	 * Get the free inode number from imap first.
 	 */
 
+	type = (flags & FTYPE_FILE) ? IFREG : IFDIR;
 	if ((error = get_free_inum(fsm, inump)) != 0) {
 		fprintf(stderr, "inode_alloc: Failed to get free inode "
 			"for %s\n", fsm->fsm_mntpt);
