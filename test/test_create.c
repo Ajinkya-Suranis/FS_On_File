@@ -12,11 +12,11 @@ main(
 {
 	struct file_handle	*fh = NULL;
 	FSHANDLE		fsh = NULL;
-	int			err = 0;
 	unsigned int		type;
 
-	if (argc != 4) {
-		fprintf(stderr, "Usage: %s <device file> <path> <type>\n", argv[0]);
+	if (argc != 5) {
+		fprintf(stderr, "Usage: %s <device file> <mntpt> <path>"
+			" <type>\n", argv[0]);
 		return 1;
 	}
 
@@ -25,13 +25,13 @@ main(
                 return 1;
         }
 	printf("FS mounted successfully\n");
-	type = (unsigned int)atoi(argv[2]);
-	fh = fscreate(fsh, argv[2], type);
+	type = (unsigned int)atoi(argv[4]);
+	fh = fscreate(fsh, argv[3], type);
 	if (fh == NULL) {
-		fprintf(stderr, "Failed to create file %s\n", argv[2]);
-		err = 1;
+		fprintf(stderr, "Failed to create file %s\n", argv[3]);
+		return 1;
 	}
-	printf("Created file %s successfully\n", argv[2]);
+	printf("Created file %s successfully\n", argv[3]);
 
-	return err;
+	return 0;
 }

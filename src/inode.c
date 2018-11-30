@@ -60,6 +60,7 @@ iget(
 	mino->mino_number = inum;
 	mino->mino_fsm = fsm;
 	mino->mino_bno = blkno;
+	printf("iget mino_bno is: %llu, type: %u\n", mino->mino_bno, mino->mino_type);
 	return mino;
 }
 
@@ -74,7 +75,9 @@ iwrite(
 	fs_u64_t	offset;
 
 	printf("Entered iwrite\n");
-	assert(ino != NULL && ino->mino_fsm != NULL && ino->mino_bno != 0);
+	assert(ino != NULL);
+	assert(ino->mino_fsm != NULL);
+	assert(ino->mino_bno != 0);
 	offset = (ino->mino_bno << LOG_ONE_K) +
 		  ((ino->mino_number) << LOG_INOSIZE);
 	fprintf(stdout, "INFO: writing inode number %llu at ilist block number"
@@ -280,14 +283,14 @@ add_ilist_entry(
 				"failed for %s\n", fsm->fsm_mntpt);
 			return error;
 		}
-		buf = (char *)malloc(len >> LOG_ONE_K);
+		buf = (char *)malloc(len << LOG_ONE_K);
 		if (!buf) {
 			fprintf(stderr, "add_ilist_entry: failed to allocate "
 				"memory for ilist extent for %s\n",
 				fsm->fsm_mntpt);
 			return ENOMEM;
 		}
-		memset(buf, 0, len >> LOG_ONE_K);
+		memset(buf, 0, len << LOG_ONE_K);
 		memset(&dp, 0, sizeof(struct dinode));
 
 		/*

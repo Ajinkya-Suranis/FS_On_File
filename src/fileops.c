@@ -60,6 +60,7 @@ fsread_dir(
 	assert(offset % DIRENTRY_LEN == 0);
 	len = nentries * DIRENTRY_LEN;
 
+	printf("error string is: %s\n", strerror(errno));
 	if ((rd = internal_read(fh->fh_fsh->fsh_mem->fsm_devfd, mino, intbuf,
 				offset, len)) != (int)len && errno) {
 		fprintf(stderr, "Failed to read directory inode %llu: %s\n",
@@ -74,6 +75,13 @@ fsread_dir(
 		buf += UDIRENTRY_LEN;
 		intbuf += DIRENTRY_LEN;
 	}
+
+	/*
+	 * Update the current offset of file after
+	 * successful/partial read.
+	 */
+
+	fh->fh_curoffset += (fs_u64_t)rd;
 
 	return nentries;
 }
@@ -181,8 +189,8 @@ lookup_path(
 				if (strlen(dirp->name) == (end - start) &&
 				    strncmp(path + start, dirp->name,
 				    (end - start)) == 0) {
-					fprintf(stdout, "Found matching entry:",
-						dirp->name);
+					fprintf(stdout, "Found matching entry:"
+						" %s\n", dirp->name);
 					found = 1;
 					break;
 				}
@@ -229,15 +237,22 @@ internal_read(
 	fs_u32_t	remain = len;
 	int		error = 0;
 
+	errno = 0;
+	printf("inode size iss: %llu\n", mino->mino_size);
 	while (nread < len) {
-		if (remain == 0) {
+		printf("curoff is: %llu\n", curoff);
+		if (remain == 0 || curoff >= mino->mino_size) {
+			printf("We're breaking properly\n");
 			break;
 		}
                 if ((error = bmap(fd, mino, &blkno, &sz, &off, curoff)) != 0) {
                         errno = error;
                         goto out;
                 }
-                readlen = MIN(remain, (fs_u32_t)sz);
+		printf("Returned length is: %llu\n", sz);
+                readlen = (fs_u32_t)MIN(remain,
+					MIN(sz, mino->mino_size - curoff));
+		printf("readlen is %u\n", readlen);
                 foff = (blkno << LOG_ONE_K) + off;
                 lseek(fd, foff, SEEK_SET);
 		printf("internal_read: Reading from blkno %llu\n", blkno);
@@ -392,6 +407,7 @@ fscreate(
 	} else {
 		ent.inumber = MNTPT_INO;
 	}
+	printf("ent.inumber: %llu\n", ent.inumber);
 
 	/*
 	 * The file doesn't exist.
@@ -404,6 +420,7 @@ fscreate(
 			fsm->fsm_mntpt);
 		return NULL;
 	}
+	printf("Parent inode num: %llu, type: %u, size: %llu\n", parent->mino_number, parent->mino_type, parent->mino_size);
 	assert(parent->mino_type == IFDIR);
 	if ((error = inode_alloc(fsm, flags, &inum)) != 0) {
 		return NULL;

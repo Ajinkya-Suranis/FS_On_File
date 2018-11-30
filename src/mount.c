@@ -12,7 +12,7 @@
 
 static int		validate_sb(struct super_block *);
 static int		fill_inodes(struct fsmem *);
-static struct minode *	alloc_minode(struct fsmem *, fs_u64_t);
+static struct minode *	alloc_minode(struct fsmem *, fs_u64_t, fs_u64_t);
 
 static int
 validate_sb(
@@ -31,7 +31,8 @@ validate_sb(
 static struct minode *
 alloc_minode(
 	struct fsmem	*fsm,
-	fs_u64_t	inum)
+	fs_u64_t	inum,
+	fs_u64_t	bno)
 {
 	struct minode	*mino = NULL;
  	mino = (struct minode *)malloc(sizeof(struct minode));
@@ -43,6 +44,7 @@ alloc_minode(
 	bzero(mino, sizeof(struct minode));
 	mino->mino_fsm = fsm;
 	mino->mino_number = inum;
+	mino->mino_bno = bno;
  	return mino;
 }
 
@@ -67,28 +69,28 @@ fill_inodes(
 		free(buf);
 		return 1;
 	}
-	mino = alloc_minode(fsm, ILIST_INO);
+	mino = alloc_minode(fsm, ILIST_INO, fsm->fsm_sb->ilistblk >> LOG_ONE_K);
 	if (!mino) {
 		goto out;
 	}
 	bcopy(buf, &mino->mino_dip, sizeof(struct dinode));
 	fsm->fsm_ilip = mino;
 	buf += INOSIZE;
-	mino = alloc_minode(fsm, EMAP_INO);
+	mino = alloc_minode(fsm, EMAP_INO, fsm->fsm_sb->ilistblk >> LOG_ONE_K);
 	if (!mino) {
 		goto out;
 	}
 	bcopy(buf, &mino->mino_dip, sizeof(struct dinode));
 	fsm->fsm_emapip = mino;
 	buf += INOSIZE;
-	mino = alloc_minode(fsm, IMAP_INO);
+	mino = alloc_minode(fsm, IMAP_INO, fsm->fsm_sb->ilistblk >> LOG_ONE_K);
         if (!mino) {
 		goto out;
 	}
 	bcopy(buf, &mino->mino_dip, sizeof(struct dinode));
 	fsm->fsm_imapip = mino;
 	buf += INOSIZE;
-	mino = alloc_minode(fsm, MNTPT_INO);
+	mino = alloc_minode(fsm, MNTPT_INO, fsm->fsm_sb->ilistblk >> LOG_ONE_K);
 	if (!mino) {
 		goto out;
 	}

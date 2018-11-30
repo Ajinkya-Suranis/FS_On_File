@@ -16,8 +16,9 @@ main(
 	FSHANDLE                fsh = NULL;
 	int			nent, i;
 
-	if (argc != 3) {
-		fprintf(stderr, "Usage: %s <device file> <path> \n", argv[0]);
+	if (argc != 4) {
+		fprintf(stderr, "Usage: %s <device file> <mntpt>"
+			" <path> \n", argv[0]);
 		return 1;
 	}
 
@@ -26,25 +27,24 @@ main(
                 return 1;
         }
 	printf("FS mounted successfully\n");
-	fh = fsopen(fsh, argv[2], 1);
+	fh = fsopen(fsh, argv[3], 1);
 	if (fh == NULL) {
-		fprintf(stderr, "Failed to open file %s\n", argv[2]);
+		fprintf(stderr, "Failed to open file %s\n", argv[3]);
 		return 1;
 	}
-	printf("Opened file %s successfully\n", argv[2]);
+	printf("Opened file %s successfully\n", argv[3]);
 	ud = (struct udirentry *)malloc(sizeof(struct udirentry) * 8);
 	while (1) {
 		nent = fsread_dir(fh, (char *)ud, 8);
-		if (nent < 8) {
-			printf("less than 8 entries read\n");
-			if (nent == 0) {
-				break;
-			}
-		}
+		printf("nent: %d\n", nent);
 		for (i = 0; i < nent; i++) {
 			printf("name: %s, inum: %llu\n", ud->udir_name,
 				ud->udir_inum);
 			ud++;
+		}
+		if (nent < 8) {
+			printf("less than 8 entries read\n");
+			break;
 		}
 	}
 

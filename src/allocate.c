@@ -27,6 +27,7 @@ traverse_emapbuf(
 			if (start == -1) {
 				start = i << 3;
 			}
+			buf[i] = 0;
 			nbits += 8;
 			continue;
 		} else if (buf[i] == 0) {

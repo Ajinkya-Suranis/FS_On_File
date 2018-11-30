@@ -97,7 +97,7 @@ write_ilist(
         dp->nblocks = INIT_ILT_SIZE >> LOG_ONE_K;
         dp->orgtype = ORG_DIRECT;
         dp->orgarea.dir[0].blkno = sb->lastblk;
-        dp->orgarea.dir[0].len = 4;
+        dp->orgarea.dir[0].len = dp->nblocks;
         ptr += INOSIZE;
         dp = (struct dinode *)ptr;
         dp->type = IFEMP;
